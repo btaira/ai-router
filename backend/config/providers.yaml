@@ -1,0 +1,115 @@
+# Provider routing config. Model IDs / reasoning params live here so a
+# provider's flagship model can change without touching adapter code.
+# API keys are read from environment variables (see .env.example), never
+# stored here.
+#
+# NOTE ON MODEL NAMES: provider naming conventions change frequently.
+# Verify model_id and the reasoning/thinking params against each
+# provider's current docs before a production run; the values below are
+# the working defaults for this deployment and are meant to be edited,
+# not treated as ground truth.
+
+providers:
+  anthropic:
+    enabled: true
+    display_name: "Anthropic"
+    base_url: "https://api.anthropic.com/v1/messages"
+    api_key_env: "ANTHROPIC_API_KEY"
+    model: "claude-opus-4-8"
+    max_tokens: 8192
+    thinking:
+      type: "enabled"
+      budget_tokens: 32000
+    request_style: anthropic
+    pricing:
+      input_per_million: 15.00
+      output_per_million: 75.00
+
+  openai:
+    enabled: true
+    display_name: "OpenAI"
+    base_url: "https://api.openai.com/v1/responses"
+    api_key_env: "OPENAI_API_KEY"
+    model: "gpt-5.6-sol"
+    reasoning:
+      effort: "xhigh"
+    max_output_tokens: 8192
+    request_style: openai_responses
+    pricing:
+      input_per_million: 12.00
+      output_per_million: 60.00
+
+  google:
+    enabled: true
+    display_name: "Google Gemini"
+    base_url: "https://generativelanguage.googleapis.com/v1beta/models"
+    api_key_env: "GOOGLE_API_KEY"
+    model: "gemini-3.1-pro"
+    thinking_level: "high"
+    max_output_tokens: 8192
+    request_style: google_native
+    pricing:
+      input_per_million: 10.00
+      output_per_million: 50.00
+
+  deepseek:
+    enabled: true
+    display_name: "DeepSeek"
+    base_url: "https://api.deepseek.com/v1/chat/completions"
+    api_key_env: "DEEPSEEK_API_KEY"
+    model: "deepseek-v4-pro"
+    reasoning_effort: "max"
+    thinking:
+      type: "enabled"
+    max_tokens: 8192
+    request_style: openai_chat
+    pricing:
+      input_per_million: 2.50
+      output_per_million: 10.00
+
+  minimax:
+    enabled: true
+    display_name: "MiniMax"
+    base_url: "https://api.minimax.io/anthropic/v1/messages"
+    api_key_env: "MINIMAX_API_KEY"
+    model: "MiniMax-M2.7"
+    reasoning_split: true
+    max_tokens: 8192
+    request_style: anthropic
+    pricing:
+      input_per_million: 3.00
+      output_per_million: 12.00
+
+  moonshot:
+    enabled: true
+    display_name: "Moonshot (Kimi)"
+    base_url: "https://api.moonshot.ai/v1/chat/completions"
+    api_key_env: "MOONSHOT_API_KEY"
+    model: "kimi-k2.6"
+    preserve_thinking: true
+    max_tokens: 8192
+    request_style: openai_chat
+    pricing:
+      input_per_million: 2.00
+      output_per_million: 8.00
+
+pipeline:
+  stage1:
+    timeout_seconds: 180
+
+  stage2:
+    enabled: true
+    mode: "designated_fact_checkers"   # designated_fact_checkers | full_mesh | diff_then_check
+    fact_checkers:
+      - anthropic
+      - openai
+    timeout_seconds: 180
+
+  stage3:
+    synthesis_provider: anthropic
+    timeout_seconds: 180
+
+  citations:
+    timeout_seconds: 10
+    retries: 1
+    user_agent: "ai-router-citation-checker/1.0"

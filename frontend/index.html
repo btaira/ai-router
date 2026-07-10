@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Router — Multi-LLM Consensus &amp; Fact-Check</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>AI Router</h1>
+    <p class="tagline">Multi-LLM consensus &amp; fact-check</p>
+
+    <form id="run-form">
+      <textarea id="prompt" placeholder="Ask something..." rows="6" required></textarea>
+
+      <label class="row">
+        <input type="checkbox" id="skip-stage2" />
+        Skip fact-check stage (faster/cheaper)
+      </label>
+
+      <label class="field">
+        Fact-check mode
+        <select id="stage2-mode">
+          <option value="designated_fact_checkers">Designated fact-checkers</option>
+          <option value="full_mesh">Full mesh (deep audit)</option>
+          <option value="diff_then_check">Diff-then-check</option>
+        </select>
+      </label>
+
+      <label class="field">
+        Synthesis model
+        <select id="synthesis-provider"></select>
+      </label>
+
+      <button type="submit" id="submit-btn">Run</button>
+    </form>
+
+    <div class="run-list">
+      <h2>Recent runs</h2>
+      <ul id="run-list"></ul>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div id="empty-state" class="empty-state">
+      Enter a prompt to fan it out to six providers, cross-check the answers, and synthesize a verified-citation answer.
+    </div>
+
+    <div id="run-view" class="run-view hidden">
+      <div class="status-bar">
+        <span id="status-badge" class="badge"></span>
+        <span id="cost-summary" class="cost"></span>
+        <button id="resume-btn" class="ghost-btn hidden">Resume / re-run</button>
+      </div>
+
+      <section id="synthesis-section" class="synthesis hidden">
+        <h2>Synthesized answer</h2>
+        <div id="synthesis-text" class="synthesis-text"></div>
+        <div id="citations" class="citations"></div>
+      </section>
+
+      <section class="stage2-section">
+        <h2>Fact-check flags</h2>
+        <div id="factcheck-list"></div>
+      </section>
+
+      <section class="stage1-section">
+        <h2>Stage 1 — independent answers</h2>
+        <div id="provider-tabs" class="tabs"></div>
+        <div id="provider-panels"></div>
+      </section>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

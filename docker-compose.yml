@@ -1,0 +1,16 @@
+services:
+  ai-router:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ai-router-data:/app/backend/data
+      - ./backend/config:/app/backend/config
+    restart: unless-stopped
+
+volumes:
+  ai-router-data:
