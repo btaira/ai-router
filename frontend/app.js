@@ -175,9 +175,17 @@ function fmtCost(n) {
   return `$${(n ?? 0).toFixed(4)}`;
 }
 
+// Tokens are shown in millions (not raw counts) since pricing in
+// providers.yaml is per-million-tokens — this keeps the displayed numbers
+// directly comparable to the $/M rate that produced the cost figure.
+function fmtTokensM(n) {
+  if (n == null) return "?";
+  return `${(n / 1_000_000).toFixed(6)}M`;
+}
+
 function fmtTokens(stage) {
   if (!stage || (!stage.input_tokens && !stage.output_tokens)) return null;
-  return `${stage.input_tokens}in / ${stage.output_tokens}out`;
+  return `${fmtTokensM(stage.input_tokens)} in / ${fmtTokensM(stage.output_tokens)} out`;
 }
 
 function renderBubbles(stage1Responses, costByProvider) {
@@ -219,7 +227,11 @@ function renderBubbles(stage1Responses, costByProvider) {
     const bubble = document.createElement("div");
     bubble.className = `bubble ${stateClass}`;
     if (title) bubble.title = title;
-    bubble.innerHTML = `<div class="bubble-header"><span class="bubble-dot"></span><span class="bubble-name">${escapeHtml(p.display_name)}</span><span class="bubble-label">${escapeHtml(label)}</span></div>`;
+    const model = (r && r.model) || p.model;
+    bubble.innerHTML = `
+      <div class="bubble-header"><span class="bubble-dot"></span><span class="bubble-name">${escapeHtml(p.display_name)}</span><span class="bubble-label">${escapeHtml(label)}</span></div>
+      ${model ? `<div class="bubble-model">${escapeHtml(model)}</div>` : ""}
+    `;
 
     const costs = costByProvider[p.key];
     if (costs) {
@@ -230,7 +242,12 @@ function renderBubbles(stage1Responses, costByProvider) {
         const stage = costs[key];
         if (!stage || (!stage.input_tokens && !stage.output_tokens && !stage.cost_usd)) continue;
         const tokens = fmtTokens(stage);
-        costLines.innerHTML += `<div class="bubble-cost-row"><span>${short}</span><span>${fmtCost(stage.cost_usd)}</span>${tokens ? `<span class="bubble-tokens">${tokens}</span>` : ""}</div>`;
+        costLines.innerHTML += `
+          <div class="bubble-cost-row">
+            <span>${short}</span><span>${fmtCost(stage.cost_usd)}</span>
+          </div>
+          ${tokens ? `<div class="bubble-tokens">${tokens}</div>` : ""}
+        `;
       }
       if (costs.total && costs.total.cost_usd) {
         costLines.innerHTML += `<div class="bubble-cost-row total"><span>Total</span><span>${fmtCost(costs.total.cost_usd)}</span></div>`;
@@ -323,9 +340,13 @@ function renderStage1(responses) {
   }
 
   for (const r of responses) {
+    const p = state.providers.find((p) => p.key === r.provider);
+    const displayName = p ? p.display_name : r.provider;
+
     const btn = document.createElement("button");
     btn.className = "tab-btn" + (r.provider === state.activeProvider ? " active" : "");
-    btn.innerHTML = `<span class="status-dot ${r.status}"></span>${escapeHtml(r.provider)}`;
+    if (r.model) btn.title = r.model;
+    btn.innerHTML = `<span class="status-dot ${r.status}"></span>${escapeHtml(displayName)}`;
     btn.addEventListener("click", () => {
       state.activeProvider = r.provider;
       renderStage1(responses);
@@ -341,12 +362,20 @@ function renderStage1(responses) {
         panel.innerHTML = `
           <div class="meta-row">
             <span>model: ${escapeHtml(r.model)}</span>
-            <span>tokens: ${r.input_tokens ?? "?"} in / ${r.output_tokens ?? "?"} out</span>
+            <span>tokens: ${fmtTokensM(r.input_tokens)} in / ${fmtTokensM(r.output_tokens)} out</span>
             <span>cost: $${(r.cost_usd ?? 0).toFixed(4)}</span>
             <span>latency: ${r.latency_ms ? Math.round(r.latency_ms) + "ms" : "?"}</span>
           </div>
-          <div class="answer-text">${escapeHtml(r.response_text)}</div>
-          ${r.thinking_text ? `<details><summary>Show reasoning/thinking trace</summary><div class="thinking-text">${escapeHtml(r.thinking_text)}</div></details>` : ""}
+          ${r.thinking_text ? `
+            <div class="answer-block">
+              <div class="answer-block-label">Thinking</div>
+              <div class="thinking-text">${escapeHtml(r.thinking_text)}</div>
+            </div>
+          ` : ""}
+          <div class="answer-block">
+            <div class="answer-block-label">Final answer</div>
+            <div class="answer-text">${escapeHtml(r.response_text)}</div>
+          </div>
         `;
       }
       panels.appendChild(panel);
