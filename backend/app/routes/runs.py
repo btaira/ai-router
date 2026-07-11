@@ -40,7 +40,7 @@ def get_provider_config():
 
 
 @router.post("/runs")
-def create_run(req: CreateRunRequest):
+async def create_run(req: CreateRunRequest):
     cfg = get_config()
     if req.stage2_mode and req.stage2_mode not in ("designated_fact_checkers", "full_mesh", "diff_then_check"):
         raise HTTPException(400, f"invalid stage2_mode: {req.stage2_mode}")
@@ -92,7 +92,7 @@ def get_run(run_id: str):
 
 
 @router.post("/runs/{run_id}/resume")
-def resume_run(run_id: str, req: ResumeRunRequest):
+async def resume_run(run_id: str, req: ResumeRunRequest):
     run = db.get_run(run_id)
     if run is None:
         raise HTTPException(404, "run not found")

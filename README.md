@@ -44,23 +44,81 @@ before spending money re-calling a provider, so `POST /api/runs/{id}/resume`
 can re-run just stage 3 (e.g. while iterating on the synthesis prompt)
 without re-paying for stage 1.
 
-## Running locally
+## Quick start
+
+First, on any platform: copy the env template and fill in whichever provider
+API keys you have (a provider left blank just reports "missing API key" in
+stage 1 instead of blocking the other five — you don't need all six).
 
 ```bash
-cp .env.example .env   # fill in the provider API keys you have
+cp .env.example .env
+```
+
+The app loads `.env` automatically on startup (via `python-dotenv`) — no
+need to `source` it or export vars by hand.
+
+### Option A — Docker (any OS, recommended)
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
 docker compose up --build
 ```
 
-Then open http://localhost:8000.
+Open http://localhost:8000.
 
-Without Docker:
+### Option B — Run it directly
+
+<details open>
+<summary><strong>macOS / Linux</strong></summary>
 
 ```bash
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example ../.env   # fill in keys, then `source` or use a dotenv loader
 uvicorn app.main:app --reload
 ```
+
+</details>
+
+<details>
+<summary><strong>Windows (PowerShell)</strong></summary>
+
+```powershell
+cd backend
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+If `Activate.ps1` is blocked by execution policy, run PowerShell as your
+normal user and allow it for the current session only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+```
+
+</details>
+
+<details>
+<summary><strong>Windows (Git Bash)</strong></summary>
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+</details>
+
+Then open http://localhost:8000. The SQLite DB is created at
+`backend/data/ai_router.db` on first run.
+
+Stop the server with `Ctrl+C`. Deactivate the venv with `deactivate`.
 
 ## Configuration
 

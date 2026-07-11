@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from . import db
-from .routes.runs import router as runs_router
+# Load ../.env (repo root) before anything reads provider API keys from the
+# environment. Explicit path so this works regardless of the CWD uvicorn was
+# launched from (e.g. `backend/` vs repo root) — matters most on Windows,
+# where there's no `source .env` equivalent.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
+
+from . import db  # noqa: E402
+from .routes.runs import router as runs_router  # noqa: E402
 
 app = FastAPI(title="AI Router — Multi-LLM Consensus & Fact-Check Engine")
 
