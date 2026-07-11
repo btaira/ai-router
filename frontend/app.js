@@ -2,6 +2,7 @@ const state = {
   currentRunId: null,
   pollTimer: null,
   activeProvider: null,
+  providers: [],
 };
 
 const el = (id) => document.getElementById(id);
@@ -9,6 +10,8 @@ const el = (id) => document.getElementById(id);
 async function loadConfig() {
   const res = await fetch("/api/config");
   const cfg = await res.json();
+  state.providers = cfg.providers;
+
   const select = el("synthesis-provider");
   select.innerHTML = "";
   for (const p of cfg.providers) {
@@ -108,9 +111,54 @@ function render(data) {
   el("resume-btn").classList.toggle("hidden", run.status !== "complete" && run.status !== "failed");
   el("resume-btn").onclick = () => resumeRun(run.run_id);
 
+  renderBubbles(stage1_responses);
   renderSynthesis(synthesis, citation_verifications);
   renderFactChecks(fact_check_results);
   renderStage1(stage1_responses);
+}
+
+function renderBubbles(stage1Responses) {
+  const container = el("provider-bubbles");
+  container.innerHTML = "";
+  const byProvider = Object.fromEntries(stage1Responses.map((r) => [r.provider, r]));
+
+  const providers = state.providers.length ? state.providers : stage1Responses.map((r) => ({
+    key: r.provider, display_name: r.provider, has_api_key: true,
+  }));
+
+  for (const p of providers) {
+    const r = byProvider[p.key];
+    let stateClass = "pending";
+    let label = "waiting…";
+    let title = "";
+
+    if (!p.has_api_key) {
+      stateClass = "no-key";
+      label = "no API key";
+    } else if (r) {
+      if (r.status === "running") {
+        stateClass = "running";
+        label = "thinking…";
+      } else if (r.status === "ok") {
+        stateClass = "ok";
+        label = r.latency_ms ? `${Math.round(r.latency_ms)}ms` : "done";
+      } else if (r.status === "timeout") {
+        stateClass = "error";
+        label = "timed out";
+        title = r.error || "";
+      } else if (r.status === "error") {
+        stateClass = "error";
+        label = "error";
+        title = r.error || "";
+      }
+    }
+
+    const bubble = document.createElement("div");
+    bubble.className = `bubble ${stateClass}`;
+    if (title) bubble.title = title;
+    bubble.innerHTML = `<span class="bubble-dot"></span><span class="bubble-name">${escapeHtml(p.display_name)}</span><span class="bubble-label">${escapeHtml(label)}</span>`;
+    container.appendChild(bubble);
+  }
 }
 
 function renderSynthesis(synthesis, citationVerifications) {

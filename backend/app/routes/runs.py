@@ -27,7 +27,10 @@ def get_provider_config():
     cfg = get_config()
     return {
         "providers": [
-            {"key": key, "display_name": p.display_name, "model": p.model, "enabled": p.enabled}
+            {
+                "key": key, "display_name": p.display_name, "model": p.model,
+                "enabled": p.enabled, "has_api_key": bool(p.api_key),
+            }
             for key, p in cfg.providers.items()
         ],
         "stage2": {
