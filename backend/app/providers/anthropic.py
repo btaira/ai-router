@@ -25,6 +25,9 @@ class AnthropicAdapter(BaseAdapter):
         thinking = cfg.extra.get("thinking")
         if thinking:
             body["thinking"] = thinking
+        output_config = cfg.extra.get("output_config")
+        if output_config:
+            body["output_config"] = output_config
         return cfg.base_url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:

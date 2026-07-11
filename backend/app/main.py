@@ -9,8 +9,11 @@ from fastapi.staticfiles import StaticFiles
 # Load ../.env (repo root) before anything reads provider API keys from the
 # environment. Explicit path so this works regardless of the CWD uvicorn was
 # launched from (e.g. `backend/` vs repo root) — matters most on Windows,
-# where there's no `source .env` equivalent.
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
+# where there's no `source .env` equivalent. override=True so a value set in
+# .env always wins over a stray same-named var already in the shell (e.g. a
+# local tool like LM Studio exporting its own OPENAI_API_KEY) — this app's
+# config should be the single source of truth for its own provider keys.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env", override=True)
 
 from . import db  # noqa: E402
 from .routes.runs import router as runs_router  # noqa: E402

@@ -18,8 +18,9 @@ providers:
     model: "claude-opus-4-8"
     max_tokens: 8192
     thinking:
-      type: "enabled"
-      budget_tokens: 32000
+      type: "adaptive"
+    output_config:
+      effort: "high"
     request_style: anthropic
     pricing:
       input_per_million: 15.00
@@ -44,7 +45,7 @@ providers:
     display_name: "Google Gemini"
     base_url: "https://generativelanguage.googleapis.com/v1beta/models"
     api_key_env: "GOOGLE_API_KEY"
-    model: "gemini-3.1-pro"
+    model: "gemini-3.1-pro-preview"
     thinking_level: "high"
     max_output_tokens: 8192
     request_style: google_native
