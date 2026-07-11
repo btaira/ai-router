@@ -22,6 +22,60 @@ async function loadConfig() {
     select.appendChild(opt);
   }
   el("stage2-mode").value = cfg.stage2.default_mode;
+
+  renderModelSettings();
+}
+
+function renderModelSettings() {
+  const container = el("model-settings-list");
+  container.innerHTML = "";
+  for (const p of state.providers) {
+    const row = document.createElement("div");
+    row.className = "model-row";
+    row.innerHTML = `
+      <label>${escapeHtml(p.display_name)}</label>
+      <div class="model-row-controls">
+        <input type="text" class="model-input" value="${escapeHtml(p.model)}" data-provider="${escapeHtml(p.key)}" />
+        <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
+      </div>
+      <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
+    `;
+    container.appendChild(row);
+  }
+  container.querySelectorAll(".model-save-btn").forEach((btn) => {
+    btn.addEventListener("click", () => saveProviderModel(btn.dataset.provider));
+  });
+}
+
+async function saveProviderModel(providerKey) {
+  const input = document.querySelector(`.model-input[data-provider="${providerKey}"]`);
+  const statusEl = document.querySelector(`.model-save-status[data-provider="${providerKey}"]`);
+  const newModel = input.value.trim();
+  if (!newModel) return;
+
+  statusEl.textContent = "saving…";
+  statusEl.className = "model-save-status";
+  try {
+    const res = await fetch(`/api/config/providers/${providerKey}/model`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: newModel }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      statusEl.textContent = `error: ${err.detail || res.statusText}`;
+      statusEl.className = "model-save-status error";
+      return;
+    }
+    const data = await res.json();
+    const p = state.providers.find((p) => p.key === providerKey);
+    if (p) p.model = data.model;
+    statusEl.textContent = "saved — takes effect next run";
+    statusEl.className = "model-save-status ok";
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "model-save-status error";
+  }
 }
 
 async function loadRunList() {
@@ -98,7 +152,7 @@ async function poll() {
 }
 
 function render(data) {
-  const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary } = data;
+  const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary, cost_by_provider } = data;
 
   const statusBadge = el("status-badge");
   statusBadge.textContent = run.status;
@@ -111,13 +165,22 @@ function render(data) {
   el("resume-btn").classList.toggle("hidden", run.status !== "complete" && run.status !== "failed");
   el("resume-btn").onclick = () => resumeRun(run.run_id);
 
-  renderBubbles(stage1_responses);
+  renderBubbles(stage1_responses, cost_by_provider || {});
   renderSynthesis(synthesis, citation_verifications);
   renderFactChecks(fact_check_results);
   renderStage1(stage1_responses);
 }
 
-function renderBubbles(stage1Responses) {
+function fmtCost(n) {
+  return `$${(n ?? 0).toFixed(4)}`;
+}
+
+function fmtTokens(stage) {
+  if (!stage || (!stage.input_tokens && !stage.output_tokens)) return null;
+  return `${stage.input_tokens}in / ${stage.output_tokens}out`;
+}
+
+function renderBubbles(stage1Responses, costByProvider) {
   const container = el("provider-bubbles");
   container.innerHTML = "";
   const byProvider = Object.fromEntries(stage1Responses.map((r) => [r.provider, r]));
@@ -156,7 +219,25 @@ function renderBubbles(stage1Responses) {
     const bubble = document.createElement("div");
     bubble.className = `bubble ${stateClass}`;
     if (title) bubble.title = title;
-    bubble.innerHTML = `<span class="bubble-dot"></span><span class="bubble-name">${escapeHtml(p.display_name)}</span><span class="bubble-label">${escapeHtml(label)}</span>`;
+    bubble.innerHTML = `<div class="bubble-header"><span class="bubble-dot"></span><span class="bubble-name">${escapeHtml(p.display_name)}</span><span class="bubble-label">${escapeHtml(label)}</span></div>`;
+
+    const costs = costByProvider[p.key];
+    if (costs) {
+      const costLines = document.createElement("div");
+      costLines.className = "bubble-costs";
+      const stageLabels = [["stage1", "S1"], ["stage2", "S2"], ["stage3", "S3"]];
+      for (const [key, short] of stageLabels) {
+        const stage = costs[key];
+        if (!stage || (!stage.input_tokens && !stage.output_tokens && !stage.cost_usd)) continue;
+        const tokens = fmtTokens(stage);
+        costLines.innerHTML += `<div class="bubble-cost-row"><span>${short}</span><span>${fmtCost(stage.cost_usd)}</span>${tokens ? `<span class="bubble-tokens">${tokens}</span>` : ""}</div>`;
+      }
+      if (costs.total && costs.total.cost_usd) {
+        costLines.innerHTML += `<div class="bubble-cost-row total"><span>Total</span><span>${fmtCost(costs.total.cost_usd)}</span></div>`;
+      }
+      if (costLines.innerHTML) bubble.appendChild(costLines);
+    }
+
     container.appendChild(bubble);
   }
 }

@@ -282,3 +282,56 @@ def run_cost_summary(run_id: str) -> dict[str, float]:
             "SELECT COALESCE(SUM(cost_usd),0) AS c FROM synthesis_results WHERE run_id=?", (run_id,)
         ).fetchone()["c"]
         return {"stage1_usd": s1, "stage2_usd": s2, "stage3_usd": s3, "total_usd": s1 + s2 + s3}
+
+
+def _empty_stage_totals() -> dict[str, float]:
+    return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+
+
+def run_cost_by_provider(run_id: str) -> dict[str, dict[str, dict[str, float]]]:
+    """Per-provider cost/tokens broken down by the stage that spent it.
+
+    stage1: that provider's own answer. stage2: sum of every fact-check call
+    where this provider acted as checker (it may check several subjects).
+    stage3: only non-zero for whichever provider ran the synthesis step.
+    """
+    with get_conn() as conn:
+        stage1_rows = conn.execute(
+            "SELECT provider, input_tokens, output_tokens, cost_usd FROM stage1_responses WHERE run_id=?", (run_id,)
+        ).fetchall()
+        stage2_rows = conn.execute(
+            "SELECT checker_provider, input_tokens, output_tokens, cost_usd FROM fact_check_results WHERE run_id=?",
+            (run_id,),
+        ).fetchall()
+        stage3_rows = conn.execute(
+            "SELECT provider, input_tokens, output_tokens, cost_usd FROM synthesis_results WHERE run_id=?", (run_id,)
+        ).fetchall()
+
+    breakdown: dict[str, dict[str, dict[str, float]]] = {}
+
+    def _stage(provider: str, stage: str) -> dict[str, float]:
+        entry = breakdown.setdefault(provider, {
+            "stage1": _empty_stage_totals(), "stage2": _empty_stage_totals(), "stage3": _empty_stage_totals(),
+        })
+        return entry[stage]
+
+    def _add(target: dict[str, float], row: Any) -> None:
+        target["input_tokens"] += row["input_tokens"] or 0
+        target["output_tokens"] += row["output_tokens"] or 0
+        target["cost_usd"] += row["cost_usd"] or 0.0
+
+    for r in stage1_rows:
+        _add(_stage(r["provider"], "stage1"), r)
+    for r in stage2_rows:
+        _add(_stage(r["checker_provider"], "stage2"), r)
+    for r in stage3_rows:
+        _add(_stage(r["provider"], "stage3"), r)
+
+    for stages in breakdown.values():
+        stages["total"] = {
+            "input_tokens": sum(s["input_tokens"] for s in stages.values()),
+            "output_tokens": sum(s["output_tokens"] for s in stages.values()),
+            "cost_usd": sum(s["cost_usd"] for s in stages.values()),
+        }
+
+    return breakdown

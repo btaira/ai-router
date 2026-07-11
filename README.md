@@ -152,16 +152,31 @@ the OpenAI chat-completions format and normalizes reasoning effort
 (`reasoning: {effort: ...}`) and web search across vendors, so all three use
 `request_style: openai_chat` with OpenRouter's `"vendor/model-name"` slugs
 (e.g. `deepseek/deepseek-v4-pro`), not the vendors' own native model names.
-Pricing in `providers.yaml` for these three is a rough estimate — check
-OpenRouter's model pages for exact current rates if cost tracking needs to
-be precise.
+Pricing in `providers.yaml` is each provider's list/base per-token rate,
+double-checked against current pricing pages (not accounting for prompt
+caching discounts, which can cut effective cost 60-90% on repeat context —
+so these are a conservative upper bound). Re-verify periodically; they
+change often.
+
+### Changing which model a provider uses
+
+Each provider's `model` string can be changed without editing YAML or
+restarting the server: open "Model settings" in the sidebar, edit the
+model field for any provider, and click Save. This calls
+`PUT /api/config/providers/{key}/model`, which rewrites just that one
+`model:` line in `providers.yaml` (preserving every comment and the rest
+of the file — not a full YAML re-dump) and hot-reloads the in-memory
+config, so the next run picks it up immediately.
 
 ## Cost control
 
 - `GET /api/runs/{id}` returns a `cost_summary` broken down by stage
-  (`stage1_usd`/`stage2_usd`/`stage3_usd`/`total_usd`), computed from each
-  provider's `pricing` block in `providers.yaml` and the actual token
-  counts returned by that call.
+  (`stage1_usd`/`stage2_usd`/`stage3_usd`/`total_usd`) and a
+  `cost_by_provider` breakdown of the same, per provider — how much each
+  model's own stage-1 answer cost, how much it cost when acting as a
+  stage-2 fact-checker, and how much stage 3 cost if it was the synthesis
+  provider, each with input/output token counts. The UI shows this inline
+  on every provider's status card.
 - Set `skip_stage2: true` on a run (or check "Skip fact-check stage" in the
   UI) to drop the most expensive stage for quick/cheap iterations.
 

@@ -6,9 +6,9 @@ import json
 from fastapi import APIRouter, HTTPException
 
 from .. import db
-from ..config import get_config
+from ..config import ModelUpdateError, get_config, update_provider_model
 from ..pipeline.orchestrator import run_pipeline
-from ..schemas import CreateRunRequest, ResumeRunRequest
+from ..schemas import CreateRunRequest, ResumeRunRequest, UpdateProviderModelRequest
 
 router = APIRouter(prefix="/api")
 
@@ -40,6 +40,19 @@ def get_provider_config():
         },
         "stage3": {"default_synthesis_provider": cfg.stages.synthesis_provider},
     }
+
+
+@router.put("/config/providers/{provider_key}/model")
+def set_provider_model(provider_key: str, req: UpdateProviderModelRequest):
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    try:
+        update_provider_model(provider_key, req.model)
+    except ModelUpdateError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    cfg = get_config(refresh=True)
+    return {"key": provider_key, "model": cfg.providers[provider_key].model}
 
 
 @router.post("/runs")
@@ -78,6 +91,7 @@ def _serialize_run(run_id: str) -> dict:
     synthesis = db.get_synthesis_result(run_id)
     citations_ = db.get_citation_verifications(run_id)
     cost = db.run_cost_summary(run_id)
+    cost_by_provider = db.run_cost_by_provider(run_id)
 
     return {
         "run": run,
@@ -86,6 +100,7 @@ def _serialize_run(run_id: str) -> dict:
         "synthesis": synthesis,
         "citation_verifications": citations_,
         "cost_summary": cost,
+        "cost_by_provider": cost_by_provider,
     }
 
 

@@ -12,3 +12,7 @@ class CreateRunRequest(BaseModel):
 
 class ResumeRunRequest(BaseModel):
     force_stage: str | None = None  # stage1 | stage2 | stage3 | None (resume only what's missing)
+
+
+class UpdateProviderModelRequest(BaseModel):
+    model: str = Field(min_length=1)

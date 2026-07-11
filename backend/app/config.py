@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -112,3 +113,59 @@ def get_config(refresh: bool = False) -> AppConfig:
     if _config is None or refresh:
         _config = load_config()
     return _config
+
+
+class ModelUpdateError(Exception):
+    pass
+
+
+def update_provider_model(provider_key: str, new_model: str, path: Path | None = None) -> None:
+    """Rewrite just the `model:` line for one provider in providers.yaml in place.
+
+    Does a targeted text substitution rather than a full yaml.safe_load +
+    yaml.dump round-trip so the file's comments and formatting survive —
+    those comments carry real warnings (model names/params moving fast)
+    that a naive re-dump would silently drop.
+    """
+    cfg_path = path or CONFIG_PATH
+    # newline="" disables universal-newline translation on both ends — without
+    # it, Path.write_text() on Windows silently rewrites every LF in the file
+    # to CRLF (not just the line we're touching), turning a one-line edit
+    # into a whole-file line-ending change and a noisy git diff.
+    with open(cfg_path, newline="") as f:
+        text = f.read()
+    lines = text.splitlines(keepends=True)
+
+    key_pattern = re.compile(rf"^  {re.escape(provider_key)}:\s*$")
+    start = next((i for i, line in enumerate(lines) if key_pattern.match(line)), None)
+    if start is None:
+        raise ModelUpdateError(f"provider {provider_key!r} not found in {cfg_path}")
+
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        stripped = lines[i]
+        if stripped.strip() and not stripped.startswith((" ", "\t")):
+            end = i
+            break
+        if re.match(r"^  \S", stripped):  # next sibling key (provider or top-level section)
+            end = i
+            break
+
+    model_pattern = re.compile(r'^(\s*model:\s*)(".*?"|\S+)([ \t]*)$')
+    for i in range(start + 1, end):
+        line = lines[i]
+        ending = ""
+        body = line
+        if body.endswith("\r\n"):
+            ending, body = "\r\n", body[:-2]
+        elif body.endswith("\n"):
+            ending, body = "\n", body[:-1]
+        m = model_pattern.match(body)
+        if m:
+            escaped = new_model.replace('"', '\\"')
+            lines[i] = f'{m.group(1)}"{escaped}"{m.group(3)}{ending}'
+            break
+    else:
+        raise ModelUpdateError(f"no `model:` line found for provider {provider_key!r} in {cfg_path}")
+
+    cfg_path.write_text("".join(lines), newline="")

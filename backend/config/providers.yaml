@@ -22,6 +22,13 @@
 # `openrouter:web_search` tool type. Model slugs use OpenRouter's
 # "vendor/model-name" convention, which does not match the vendors' own
 # native model names.
+#
+# PRICING: all `pricing` blocks below are list/base per-token rates
+# (verified against provider/OpenRouter pricing pages), not accounting for
+# prompt caching discounts (which can cut effective cost 60-90% on repeat
+# context) — so the app's cost estimates are a conservative upper bound,
+# not what you'll necessarily be billed. Re-check these periodically;
+# they change often.
 
 providers:
   anthropic:
@@ -41,8 +48,8 @@ providers:
         max_uses: 5
     request_style: anthropic
     pricing:
-      input_per_million: 15.00
-      output_per_million: 75.00
+      input_per_million: 5.00
+      output_per_million: 25.00
 
   openai:
     enabled: true
@@ -57,8 +64,8 @@ providers:
     max_output_tokens: 8192
     request_style: openai_responses
     pricing:
-      input_per_million: 12.00
-      output_per_million: 60.00
+      input_per_million: 5.00
+      output_per_million: 30.00
 
   google:
     enabled: true
@@ -72,8 +79,11 @@ providers:
     max_output_tokens: 8192
     request_style: google_native
     pricing:
-      input_per_million: 10.00
-      output_per_million: 50.00
+      # Rate for prompts under 200K tokens; input/output double to $4/$18
+      # above that threshold (we don't track this tier switch — see cost
+      # note in README).
+      input_per_million: 2.00
+      output_per_million: 12.00
 
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
@@ -89,12 +99,9 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
-    # Rough estimate only — OpenRouter's per-model pricing can differ
-    # slightly from the vendor's direct API pricing. Check openrouter.ai's
-    # model page for exact current rates if cost tracking needs to be precise.
     pricing:
-      input_per_million: 2.50
-      output_per_million: 10.00
+      input_per_million: 0.435
+      output_per_million: 0.87
 
   minimax:
     enabled: true
@@ -109,8 +116,8 @@ providers:
     max_tokens: 8192
     request_style: openai_chat
     pricing:
-      input_per_million: 3.00
-      output_per_million: 12.00
+      input_per_million: 0.24
+      output_per_million: 0.96
 
   moonshot:
     enabled: true
@@ -125,8 +132,8 @@ providers:
     max_tokens: 8192
     request_style: openai_chat
     pricing:
-      input_per_million: 2.00
-      output_per_million: 8.00
+      input_per_million: 0.60
+      output_per_million: 2.50
 
 pipeline:
   stage1:

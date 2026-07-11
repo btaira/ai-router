@@ -90,6 +90,18 @@ button {
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ghost-btn { background: transparent; color: var(--accent); }
 
+.model-settings { font-size: 13px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; }
+.model-settings summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-weight: 600; }
+.model-row { padding: 8px 0; border-top: 1px solid var(--border); }
+.model-row:first-of-type { border-top: none; }
+.model-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.model-row-controls { display: flex; gap: 6px; }
+.model-row-controls input { flex: 1; font-size: 12px; padding: 6px 8px; }
+.model-row-controls .model-save-btn { padding: 6px 10px; font-size: 12px; border-color: var(--border); }
+.model-save-status { display: block; font-size: 11px; margin-top: 4px; color: var(--muted); min-height: 14px; }
+.model-save-status.ok { color: var(--ok); }
+.model-save-status.error { color: var(--bad); }
+
 .run-list { overflow-y: auto; flex: 1; }
 .run-list h2 { font-size: 13px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
 #run-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -155,18 +167,19 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 }
 
 .bubbles-section h2 { margin-bottom: 10px; }
-.bubbles { display: flex; flex-wrap: wrap; gap: 10px; }
+.bubbles { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
 .bubble {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 150px;
-  padding: 9px 14px;
-  border-radius: 999px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  padding: 10px 14px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--panel);
   font-size: 13px;
 }
+.bubble-header { display: flex; align-items: center; gap: 8px; }
 .bubble .bubble-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
 .bubble .bubble-name { font-weight: 600; }
 .bubble .bubble-label { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
@@ -182,6 +195,13 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 .bubble.error .bubble-label { color: var(--bad); }
 .bubble.no-key { opacity: 0.6; }
 .bubble.no-key .bubble-dot { background: var(--border); }
+
+.bubble-costs { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--border); padding-top: 6px; }
+.bubble-cost-row { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: var(--muted); }
+.bubble-cost-row span:first-child { font-weight: 600; width: 28px; flex-shrink: 0; }
+.bubble-cost-row .bubble-tokens { margin-left: auto; }
+.bubble-cost-row.total { color: var(--text); border-top: 1px solid var(--border); padding-top: 3px; margin-top: 2px; }
+.bubble-cost-row.total span:first-child { width: auto; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .tab-btn {
