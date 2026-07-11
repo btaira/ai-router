@@ -134,6 +134,28 @@ checked into `providers.yaml` were current as of this build; verify against
 each provider's live docs before depending on them in production, and
 expect to update the YAML periodically.
 
+### Live web access
+
+Every provider has its native web search tool enabled by default (Anthropic's
+`web_search_20250305`, OpenAI's `web_search`, Google's `google_search`
+grounding, and OpenRouter's `openrouter:web_search` for the three
+OpenRouter-routed models below) — so answers can cite current information
+instead of being limited to the model's training cutoff. Remove a
+provider's `tools:` block in `providers.yaml` to turn it off; it's billed
+per-search on top of normal token costs.
+
+### DeepSeek, MiniMax, and Moonshot (Kimi) via OpenRouter
+
+These three are routed through [OpenRouter](https://openrouter.ai) rather
+than called directly, using a single `OPENROUTER_API_KEY`. OpenRouter speaks
+the OpenAI chat-completions format and normalizes reasoning effort
+(`reasoning: {effort: ...}`) and web search across vendors, so all three use
+`request_style: openai_chat` with OpenRouter's `"vendor/model-name"` slugs
+(e.g. `deepseek/deepseek-v4-pro`), not the vendors' own native model names.
+Pricing in `providers.yaml` for these three is a rough estimate — check
+OpenRouter's model pages for exact current rates if cost tracking needs to
+be precise.
+
 ## Cost control
 
 - `GET /api/runs/{id}` returns a `cost_summary` broken down by stage

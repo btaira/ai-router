@@ -19,6 +19,9 @@ class OpenAIResponsesAdapter(BaseAdapter):
         reasoning = cfg.extra.get("reasoning")
         if reasoning:
             body["reasoning"] = reasoning
+        tools = cfg.extra.get("tools")
+        if tools:
+            body["tools"] = tools
         return cfg.base_url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:

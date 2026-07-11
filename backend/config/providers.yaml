@@ -8,6 +8,20 @@
 # provider's current docs before a production run; the values below are
 # the working defaults for this deployment and are meant to be edited,
 # not treated as ground truth.
+#
+# WEB SEARCH: every provider below has its native live-web-search tool
+# enabled (`tools:`), so answers can cite current information instead of
+# being limited to the model's training cutoff. Remove a provider's `tools`
+# block to turn that off (it's billed per-search on top of normal tokens).
+#
+# OPENROUTER: deepseek, minimax, and moonshot are routed through OpenRouter
+# (openrouter.ai) rather than hitting those vendors' APIs directly, using a
+# single OPENROUTER_API_KEY. OpenRouter speaks the OpenAI chat-completions
+# format (request_style: openai_chat) and normalizes reasoning effort across
+# vendors via the `reasoning` field, and web search via the
+# `openrouter:web_search` tool type. Model slugs use OpenRouter's
+# "vendor/model-name" convention, which does not match the vendors' own
+# native model names.
 
 providers:
   anthropic:
@@ -21,6 +35,10 @@ providers:
       type: "adaptive"
     output_config:
       effort: "high"
+    tools:
+      - type: "web_search_20250305"
+        name: "web_search"
+        max_uses: 5
     request_style: anthropic
     pricing:
       input_per_million: 15.00
@@ -34,6 +52,8 @@ providers:
     model: "gpt-5.6-sol"
     reasoning:
       effort: "xhigh"
+    tools:
+      - type: "web_search"
     max_output_tokens: 8192
     request_style: openai_responses
     pricing:
@@ -47,23 +67,31 @@ providers:
     api_key_env: "GOOGLE_API_KEY"
     model: "gemini-3.1-pro-preview"
     thinking_level: "high"
+    tools:
+      - google_search: {}
     max_output_tokens: 8192
     request_style: google_native
     pricing:
       input_per_million: 10.00
       output_per_million: 50.00
 
+  # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
+
   deepseek:
     enabled: true
     display_name: "DeepSeek"
-    base_url: "https://api.deepseek.com/v1/chat/completions"
-    api_key_env: "DEEPSEEK_API_KEY"
-    model: "deepseek-v4-pro"
-    reasoning_effort: "max"
-    thinking:
-      type: "enabled"
+    base_url: "https://openrouter.ai/api/v1/chat/completions"
+    api_key_env: "OPENROUTER_API_KEY"
+    model: "deepseek/deepseek-v4-pro"
+    reasoning:
+      effort: "xhigh"
+    tools:
+      - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
+    # Rough estimate only — OpenRouter's per-model pricing can differ
+    # slightly from the vendor's direct API pricing. Check openrouter.ai's
+    # model page for exact current rates if cost tracking needs to be precise.
     pricing:
       input_per_million: 2.50
       output_per_million: 10.00
@@ -71,12 +99,15 @@ providers:
   minimax:
     enabled: true
     display_name: "MiniMax"
-    base_url: "https://api.minimax.io/anthropic/v1/messages"
-    api_key_env: "MINIMAX_API_KEY"
-    model: "MiniMax-M2.7"
-    reasoning_split: true
+    base_url: "https://openrouter.ai/api/v1/chat/completions"
+    api_key_env: "OPENROUTER_API_KEY"
+    model: "minimax/minimax-m2.7"
+    reasoning:
+      effort: "xhigh"
+    tools:
+      - type: "openrouter:web_search"
     max_tokens: 8192
-    request_style: anthropic
+    request_style: openai_chat
     pricing:
       input_per_million: 3.00
       output_per_million: 12.00
@@ -84,10 +115,13 @@ providers:
   moonshot:
     enabled: true
     display_name: "Moonshot (Kimi)"
-    base_url: "https://api.moonshot.ai/v1/chat/completions"
-    api_key_env: "MOONSHOT_API_KEY"
-    model: "kimi-k2.6"
-    preserve_thinking: true
+    base_url: "https://openrouter.ai/api/v1/chat/completions"
+    api_key_env: "OPENROUTER_API_KEY"
+    model: "moonshotai/kimi-k2-thinking"
+    reasoning:
+      effort: "xhigh"
+    tools:
+      - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
     pricing:

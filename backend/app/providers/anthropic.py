@@ -1,9 +1,4 @@
-"""Anthropic Messages API adapter.
-
-Also used for MiniMax, which exposes an Anthropic-compatible endpoint
-(api.minimax.io/anthropic) — same request/response shape, different base
-URL, model name, and auth header, all of which come from providers.yaml.
-"""
+"""Anthropic Messages API adapter."""
 from __future__ import annotations
 
 from .base import BaseAdapter
@@ -28,6 +23,9 @@ class AnthropicAdapter(BaseAdapter):
         output_config = cfg.extra.get("output_config")
         if output_config:
             body["output_config"] = output_config
+        tools = cfg.extra.get("tools")
+        if tools:
+            body["tools"] = tools
         return cfg.base_url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:
@@ -43,15 +41,3 @@ class AnthropicAdapter(BaseAdapter):
         in_tok = usage.get("input_tokens")
         out_tok = usage.get("output_tokens")
         return "\n".join(text_parts).strip(), ("\n".join(thinking_parts).strip() or None), in_tok, out_tok
-
-
-class MiniMaxAdapter(AnthropicAdapter):
-    """MiniMax's Anthropic-compatible endpoint; uses Bearer auth instead of x-api-key."""
-
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
-        url, headers, body = super().build_request(prompt)
-        headers.pop("x-api-key", None)
-        headers["Authorization"] = f"Bearer {self.cfg.api_key}"
-        if self.cfg.extra.get("reasoning_split"):
-            body["reasoning_split"] = True
-        return url, headers, body

@@ -22,6 +22,9 @@ class GoogleNativeAdapter(BaseAdapter):
                 "thinkingLevel": thinking_level,
                 "includeThoughts": True,
             }
+        tools = cfg.extra.get("tools")
+        if tools:
+            body["tools"] = tools
         return url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:

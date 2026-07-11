@@ -1,16 +1,18 @@
 """OpenAI-compatible Chat Completions adapter.
 
-Used for providers that expose an OpenAI-style `/chat/completions` endpoint
-with vendor-specific extra fields for reasoning (DeepSeek's
-`reasoning_effort`/`thinking`, Moonshot/Kimi's `preserve_thinking`, etc.).
-Those vendor fields are passed through verbatim from `providers.yaml`'s
-`extra` config so no code change is needed when a provider adds/renames one.
+Used for providers that expose an OpenAI-style `/chat/completions` endpoint,
+including OpenRouter (which normalizes reasoning effort across vendors via
+`reasoning` and web search via the `openrouter:web_search` tool) as well as
+vendor-specific extra fields (DeepSeek's `reasoning_effort`/`thinking`,
+Moonshot/Kimi's `preserve_thinking`, etc). All of these are passed through
+verbatim from `providers.yaml`'s `extra` config so no code change is needed
+when a provider adds/renames one.
 """
 from __future__ import annotations
 
 from .base import BaseAdapter
 
-_PASSTHROUGH_EXTRA_KEYS = ("reasoning_effort", "thinking", "preserve_thinking")
+_PASSTHROUGH_EXTRA_KEYS = ("reasoning_effort", "thinking", "preserve_thinking", "reasoning", "tools")
 
 
 class OpenAIChatAdapter(BaseAdapter):
