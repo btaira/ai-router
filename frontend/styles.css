@@ -57,6 +57,8 @@ body {
   gap: 16px;
 }
 
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 34px; height: 34px; flex-shrink: 0; }
 .sidebar h1 { margin: 0; font-size: 20px; }
 .tagline { margin: 0; color: var(--muted); font-size: 13px; }
 
@@ -207,10 +209,19 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 
 .synthesis {
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 2px solid var(--accent);
   border-radius: 12px;
   padding: 18px 20px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent), 0 6px 20px rgba(0, 0, 0, 0.08);
 }
+.synthesis h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
+.synthesis h2::before { content: "✓"; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: white; font-size: 12px; font-weight: 700; }
 .synthesis-text { white-space: pre-wrap; line-height: 1.55; font-size: 15px; }
 
 .citations { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }

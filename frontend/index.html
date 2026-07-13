@@ -4,12 +4,25 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Router — Multi-LLM Consensus &amp; Fact-Check</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="layout">
   <aside class="sidebar">
-    <h1>AI Router</h1>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#2563eb"/>
+            <stop offset="100%" stop-color="#7dd3fc"/>
+          </linearGradient>
+        </defs>
+        <polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="#0b1830"/>
+        <text x="50" y="63" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="42" fill="url(#brandGradient)">AI</text>
+      </svg>
+      <h1>AI Router</h1>
+    </div>
     <p class="tagline">One prompt, multiple AI models, one fact-checked answer.</p>
 
     <form id="run-form">
