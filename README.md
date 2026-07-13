@@ -21,9 +21,11 @@ provider APIs, not just tests. All six providers ship **enabled by default**
 disabled or unconfigured provider is skipped cleanly rather than failing the
 run). Every model in the catalog was verified against live vendor/OpenRouter
 docs as of 2026-07-14 (see [`MODELS_STATUS.md`](MODELS_STATUS.md)) — one,
-`gemini-2.5-pro`, was found deprecated and is blocked from selection. 31
-backend tests cover the pipeline logic, citation verification, sampling
-overrides, and the config-editing endpoints.
+`gemini-2.5-pro`, was found deprecated and is blocked from selection. Every
+vendor carries a 5th backup model beyond the 4 the UI guarantees, so a
+single future deprecation (like that one) doesn't drop anyone below 4
+working choices. 31 backend tests cover the pipeline logic, citation
+verification, sampling overrides, and the config-editing endpoints.
 
 ## Pipeline
 
@@ -213,16 +215,18 @@ change often.
 Open "Model settings" in the sidebar for per-provider controls, all applied
 live (no restart) and persisted to `providers.yaml`:
 
-- **Model dropdown.** Each provider offers a curated `models:` catalog (4
-  tiers each) with live per-million-token pricing shown right in the
-  dropdown and updated the instant you change the selection, before you
-  even hit Save. Cost tracking automatically follows whichever model is
+- **Model dropdown.** Each provider offers a curated `models:` catalog — 5
+  entries per vendor by design: 4 as the guaranteed minimum plus one spare,
+  so a single model going deprecated doesn't drop anyone below 4 working
+  choices (see the policy note at the top of
+  [`MODELS_STATUS.md`](MODELS_STATUS.md)). Live per-million-token pricing
+  is shown right in the dropdown and updates instantly on selection, before
+  you even hit Save. Cost tracking automatically follows whichever model is
   selected, since `pricing` is looked up from the catalog entry matching
   `model`, not stored separately — no separate step to keep them in sync.
-  A catalog entry can carry `status: "deprecated"` (see
-  [`MODELS_STATUS.md`](MODELS_STATUS.md)) — the dropdown greys it out and
-  the backend rejects selecting it with a 400, so you can't accidentally
-  point a run at a model that's about to stop working.
+  A catalog entry can carry `status: "deprecated"` — the dropdown greys it
+  out and the backend rejects selecting it with a 400, so you can't
+  accidentally point a run at a model that's about to stop working.
 - **Enable/disable toggle.** Flips a provider's `enabled` flag immediately
   on click (no Save needed). A disabled provider is skipped entirely in
   stage 1, can't be picked as a stage-2 fact-checker, and is removed from

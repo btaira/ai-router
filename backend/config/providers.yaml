@@ -75,6 +75,9 @@ providers:
         pricing: {input_per_million: 1.00, output_per_million: 5.00}
       - id: "claude-opus-4-7"
         pricing: {input_per_million: 5.00, output_per_million: 25.00}
+      - id: "claude-fable-5"
+        # Anthropic's newest top-tier flagship (GA since 2026-06-09), above Opus 4.8.
+        pricing: {input_per_million: 10.00, output_per_million: 50.00}
 
   openai:
     enabled: true
@@ -100,6 +103,9 @@ providers:
         pricing: {input_per_million: 1.00, output_per_million: 6.00}
       - id: "gpt-5.5"
         pricing: {input_per_million: 5.00, output_per_million: 30.00}
+      - id: "gpt-5.4-mini"
+        # Different generation/size class than the gpt-5.6/5.5 models above — good buffer pick.
+        pricing: {input_per_million: 0.75, output_per_million: 4.50}
 
   google:
     enabled: true
@@ -123,6 +129,11 @@ providers:
         pricing: {input_per_million: 1.50, output_per_million: 9.00}
       - id: "gemini-3.1-flash-lite"
         pricing: {input_per_million: 0.25, output_per_million: 1.50}
+      - id: "gemini-3-flash-preview"
+        # No shutdown date announced (as of 2026-07). Older preview tier that
+        # gemini-3.5-flash eventually supersedes, but currently stable — kept
+        # as a 4th working option since gemini-2.5-pro (below) is deprecated.
+        pricing: {input_per_million: 0.50, output_per_million: 3.00}
       - id: "gemini-2.5-pro"
         pricing: {input_per_million: 1.25, output_per_million: 10.00}
         status: "deprecated"   # shuts down 2026-10-16; use gemini-3.1-pro-preview instead (Google's own recommendation)
@@ -152,6 +163,9 @@ providers:
         pricing: {input_per_million: 0.70, output_per_million: 2.50}
       - id: "deepseek/deepseek-v3.2"
         pricing: {input_per_million: 0.2145, output_per_million: 0.3218}
+      - id: "deepseek/deepseek-r1-0528"
+        # Newer point release of R1 — cheaper than the base r1 entry above.
+        pricing: {input_per_million: 0.50, output_per_million: 2.15}
 
   minimax:
     enabled: true
@@ -176,6 +190,8 @@ providers:
         pricing: {input_per_million: 0.30, output_per_million: 1.20}
       - id: "minimax/minimax-m1"
         pricing: {input_per_million: 0.40, output_per_million: 2.20}
+      - id: "minimax/minimax-m2.5"
+        pricing: {input_per_million: 0.15, output_per_million: 0.90}
 
   moonshot:
     enabled: true
@@ -200,6 +216,8 @@ providers:
         pricing: {input_per_million: 0.719, output_per_million: 3.49}
       - id: "moonshotai/kimi-k2"
         pricing: {input_per_million: 0.57, output_per_million: 2.30}
+      - id: "moonshotai/kimi-k2-0905"
+        pricing: {input_per_million: 0.60, output_per_million: 2.50}
 
 pipeline:
   stage1:
