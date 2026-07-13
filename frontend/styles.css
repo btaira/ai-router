@@ -97,6 +97,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .model-row-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); margin-bottom: 2px; }
 .model-row-toggle input { width: auto; }
 .model-row .field-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.model-row .field-label .hint { text-transform: none; font-weight: 400; opacity: 0.8; }
 .model-row select { font-size: 12px; padding: 6px 8px; }
 .model-cost-preview { font-size: 11px; color: var(--muted); }
 .sampling-row { display: flex; gap: 8px; }
@@ -139,6 +140,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .badge.complete { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
 .badge.failed { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
+.badge.running { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); animation: badge-pulse 1.6s ease-in-out infinite; }
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 .cost { color: var(--muted); font-size: 13px; }
 
 section { margin-bottom: 28px; }
@@ -203,11 +210,15 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 .bubble.no-key { opacity: 0.6; }
 .bubble.no-key .bubble-dot { background: var(--border); }
 
+.bubble.clickable { cursor: pointer; }
+.bubble.clickable:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
 .bubble-costs { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--border); padding-top: 6px; }
 .bubble-cost-row { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: var(--muted); }
 .bubble-cost-row span:first-child { font-weight: 600; width: 28px; flex-shrink: 0; }
 .bubble-cost-row.total { color: var(--text); border-top: 1px solid var(--border); padding-top: 3px; margin-top: 2px; }
 .bubble-cost-row.total span:first-child { width: auto; }
+.bubble-tok-per-sec { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 10px; }
 .bubble-tokens { font-size: 10px; color: var(--muted); margin: -2px 0 2px 36px; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }

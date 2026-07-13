@@ -24,6 +24,11 @@ class ProviderConfig:
     max_tokens: int
     pricing: dict[str, float]
     available_models: list[dict[str, Any]] = field(default_factory=list)
+    # Informational only — what the vendor's API itself defaults to when we
+    # don't send an explicit temperature/top_p. Never sent in a request; the
+    # UI just displays these next to the (optional) override inputs.
+    default_temperature: float | None = None
+    default_top_p: float | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -55,6 +60,7 @@ class AppConfig:
 _KNOWN_TOP_LEVEL_KEYS = {
     "enabled", "display_name", "base_url", "api_key_env", "model",
     "request_style", "max_tokens", "max_output_tokens", "pricing", "models",
+    "default_temperature", "default_top_p",
 }
 
 _ZERO_PRICING = {"input_per_million": 0.0, "output_per_million": 0.0}
@@ -85,6 +91,8 @@ def _build_provider_config(key: str, raw: dict[str, Any]) -> ProviderConfig:
         max_tokens=raw.get("max_tokens") or raw.get("max_output_tokens") or 4096,
         pricing=pricing,
         available_models=available_models,
+        default_temperature=raw.get("default_temperature"),
+        default_top_p=raw.get("default_top_p"),
         extra=extra,
     )
 

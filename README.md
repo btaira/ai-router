@@ -168,24 +168,37 @@ change often.
 Open "Model settings" in the sidebar for per-provider controls, all applied
 live (no restart) and persisted to `providers.yaml`:
 
-- **Model dropdown.** Each provider offers a curated `models:` catalog
-  (2 tiers each right now — a flagship and a cheaper/faster alternative) with
-  live per-million-token pricing shown right in the dropdown and updated the
-  instant you change the selection, before you even hit Save. Cost tracking
-  automatically follows whichever model is selected, since `pricing` is
-  looked up from the catalog entry matching `model`, not stored separately —
-  no separate step to keep them in sync.
+- **Model dropdown.** Each provider offers a curated `models:` catalog (4
+  tiers each) with live per-million-token pricing shown right in the
+  dropdown and updated the instant you change the selection, before you
+  even hit Save. Cost tracking automatically follows whichever model is
+  selected, since `pricing` is looked up from the catalog entry matching
+  `model`, not stored separately — no separate step to keep them in sync.
 - **Enable/disable toggle.** Flips a provider's `enabled` flag immediately
   on click (no Save needed). A disabled provider is skipped entirely in
   stage 1, can't be picked as a stage-2 fact-checker, and is removed from
   the "Synthesis model" dropdown; the backend also rejects a run that names
   a disabled provider as the synthesis provider.
 - **Temperature / top-p.** Optional per-provider sampling params, left
-  blank by default (provider's own default applies). Note some
-  reasoning-mode configurations reject custom sampling entirely — e.g.
-  Anthropic requires `temperature=1` while extended thinking is on — in
-  which case that provider's own API error surfaces normally, isolated from
-  the other five.
+  blank by default (provider's own default applies — shown as a hint next
+  to each field, from `default_temperature`/`default_top_p` in
+  `providers.yaml`, informational only and never sent unless you set an
+  override). Note some reasoning-mode configurations reject custom sampling
+  entirely — e.g. Anthropic requires `temperature=1` while extended
+  thinking is on — in which case that provider's own API error surfaces
+  normally, isolated from the other five.
+
+### Run status and provider responses
+
+- The status badge at the top of a run shows which stage is currently
+  running ("Stage 1: dispatching to providers", "Stage 2: fact-checking",
+  "Stage 3: synthesizing", "Verifying citations") in yellow, then flips to
+  green (Complete) or red (Failed).
+- Click any provider's status card to jump straight to its full response
+  (and reasoning trace, if it returned one) below — no need to hunt for the
+  matching tab.
+- Each card's cost total also shows output tokens/second for that
+  provider's stage-1 call, a quick throughput comparison across providers.
 
 All of this is `PUT /api/config/providers/{key}/{model,enabled,params}`,
 each doing a targeted rewrite of just the relevant line(s) in

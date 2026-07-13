@@ -24,24 +24,26 @@
 # native model names.
 #
 # MODELS / PRICING: `models:` is the selectable catalog shown in the UI's
-# "Model settings" dropdown — each entry's `pricing` is that specific
-# model's list/base per-token rate (verified against provider/OpenRouter
-# pricing pages; not accounting for prompt-caching discounts, which can cut
-# effective cost 60-90% on repeat context, so treat these as a conservative
-# upper bound). `model:` selects which catalog entry is active; changing it
-# from the UI also happens to keep pricing correct automatically, since cost
-# is looked up by matching `model` against this catalog, not stored
-# separately. Re-verify prices periodically — they change often. A model
-# string can still be set to something outside this catalog (e.g. via the
-# API directly); in that case cost tracking falls back to $0/M until you
-# add it here.
+# "Model settings" dropdown (4 tiers per vendor) — each entry's `pricing` is
+# that specific model's list/base per-token rate (verified against
+# provider/OpenRouter pricing pages; not accounting for prompt-caching
+# discounts, which can cut effective cost 60-90% on repeat context, so treat
+# these as a conservative upper bound). `model:` selects which catalog entry
+# is active; changing it from the UI also happens to keep pricing correct
+# automatically, since cost is looked up by matching `model` against this
+# catalog, not stored separately. Re-verify prices periodically — they
+# change often. A model string can still be set to something outside this
+# catalog (e.g. via the API directly); in that case cost tracking falls back
+# to $0/M until you add it here.
 #
 # SAMPLING: `temperature` / `top_p` are optional and omitted by default
-# (each provider's own default applies). Set from the UI's Model settings
-# panel. Note some reasoning-mode configurations reject custom sampling
-# params entirely (e.g. Anthropic requires temperature=1 while extended
-# thinking is enabled) — if that happens the provider's own error message
-# will explain why, surfaced per-provider without blocking the other five.
+# (each provider's own default applies — see `default_temperature` /
+# `default_top_p` below, which are informational only and never sent in a
+# request). Set an override from the UI's Model settings panel. Note some
+# reasoning-mode configurations reject custom sampling params entirely (e.g.
+# Anthropic requires temperature=1 while extended thinking is enabled) — if
+# that happens the provider's own error message will explain why, surfaced
+# per-provider without blocking the other five.
 
 providers:
   anthropic:
@@ -49,7 +51,7 @@ providers:
     display_name: "Anthropic"
     base_url: "https://api.anthropic.com/v1/messages"
     api_key_env: "ANTHROPIC_API_KEY"
-    model: "claude-opus-4-8"
+    model: "claude-sonnet-5"
     max_tokens: 8192
     thinking:
       type: "adaptive"
@@ -60,15 +62,21 @@ providers:
         name: "web_search"
         max_uses: 5
     request_style: anthropic
+    default_temperature: 1.0
+    default_top_p: null   # unset — Anthropic doesn't document a fixed default; model-determined
     models:
       - id: "claude-opus-4-8"
         pricing: {input_per_million: 5.00, output_per_million: 25.00}
       - id: "claude-sonnet-5"
         # Introductory pricing through 2026-08-31; standard $3/$15 after.
         pricing: {input_per_million: 2.00, output_per_million: 10.00}
+      - id: "claude-haiku-4-5"
+        pricing: {input_per_million: 1.00, output_per_million: 5.00}
+      - id: "claude-opus-4-7"
+        pricing: {input_per_million: 5.00, output_per_million: 25.00}
 
   openai:
-    enabled: true
+    enabled: false
     display_name: "OpenAI"
     base_url: "https://api.openai.com/v1/responses"
     api_key_env: "OPENAI_API_KEY"
@@ -79,14 +87,20 @@ providers:
       - type: "web_search"
     max_output_tokens: 8192
     request_style: openai_responses
+    default_temperature: 1.0
+    default_top_p: 1.0
     models:
       - id: "gpt-5.6-sol"
         pricing: {input_per_million: 5.00, output_per_million: 30.00}
       - id: "gpt-5.6-terra"
         pricing: {input_per_million: 2.50, output_per_million: 15.00}
+      - id: "gpt-5.6-luna"
+        pricing: {input_per_million: 1.00, output_per_million: 6.00}
+      - id: "gpt-5.5"
+        pricing: {input_per_million: 5.00, output_per_million: 30.00}
 
   google:
-    enabled: true
+    enabled: false
     display_name: "Google Gemini"
     base_url: "https://generativelanguage.googleapis.com/v1beta/models"
     api_key_env: "GOOGLE_API_KEY"
@@ -96,6 +110,8 @@ providers:
       - google_search: {}
     max_output_tokens: 8192
     request_style: google_native
+    default_temperature: 1.0
+    default_top_p: 0.95
     models:
       - id: "gemini-3.1-pro-preview"
         # Rate for prompts under 200K tokens; input/output double to $4/$18
@@ -103,11 +119,15 @@ providers:
         pricing: {input_per_million: 2.00, output_per_million: 12.00}
       - id: "gemini-3.5-flash"
         pricing: {input_per_million: 1.50, output_per_million: 9.00}
+      - id: "gemini-3.1-flash-lite"
+        pricing: {input_per_million: 0.25, output_per_million: 1.50}
+      - id: "gemini-2.5-pro"
+        pricing: {input_per_million: 1.25, output_per_million: 10.00}
 
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
   deepseek:
-    enabled: true
+    enabled: false
     display_name: "DeepSeek"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
@@ -118,14 +138,20 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
+    default_temperature: 1.0
+    default_top_p: 1.0
     models:
       - id: "deepseek/deepseek-v4-pro"
         pricing: {input_per_million: 0.435, output_per_million: 0.87}
       - id: "deepseek/deepseek-v4-flash"
         pricing: {input_per_million: 0.09, output_per_million: 0.18}
+      - id: "deepseek/deepseek-r1"
+        pricing: {input_per_million: 0.70, output_per_million: 2.50}
+      - id: "deepseek/deepseek-v3.2"
+        pricing: {input_per_million: 0.2145, output_per_million: 0.3218}
 
   minimax:
-    enabled: true
+    enabled: false
     display_name: "MiniMax"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
@@ -136,14 +162,20 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
+    default_temperature: 1.0
+    default_top_p: 1.0
     models:
       - id: "minimax/minimax-m2.7"
         pricing: {input_per_million: 0.24, output_per_million: 0.96}
       - id: "minimax/minimax-m2"
         pricing: {input_per_million: 0.255, output_per_million: 1.02}
+      - id: "minimax/minimax-m3"
+        pricing: {input_per_million: 0.30, output_per_million: 1.20}
+      - id: "minimax/minimax-m1"
+        pricing: {input_per_million: 0.40, output_per_million: 2.20}
 
   moonshot:
-    enabled: true
+    enabled: false
     display_name: "Moonshot (Kimi)"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
@@ -154,11 +186,17 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
+    default_temperature: 1.0
+    default_top_p: 1.0
     models:
       - id: "moonshotai/kimi-k2-thinking"
         pricing: {input_per_million: 0.60, output_per_million: 2.50}
       - id: "moonshotai/kimi-k2.6"
         pricing: {input_per_million: 0.66, output_per_million: 3.41}
+      - id: "moonshotai/kimi-k2.7-code"
+        pricing: {input_per_million: 0.719, output_per_million: 3.49}
+      - id: "moonshotai/kimi-k2"
+        pricing: {input_per_million: 0.57, output_per_million: 2.30}
 
 pipeline:
   stage1:

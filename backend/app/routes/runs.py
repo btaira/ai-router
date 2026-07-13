@@ -44,6 +44,7 @@ def get_provider_config():
                 "enabled": p.enabled, "has_api_key": bool(p.api_key),
                 "pricing": p.pricing, "available_models": p.available_models,
                 "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p"),
+                "default_temperature": p.default_temperature, "default_top_p": p.default_top_p,
             }
             for key, p in cfg.providers.items()
         ],

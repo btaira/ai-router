@@ -82,11 +82,11 @@ function renderModelSettings() {
       <div class="model-cost-preview" data-provider="${escapeHtml(p.key)}">${fmtRate(p.pricing.input_per_million)} in / ${fmtRate(p.pricing.output_per_million)} out per million tokens</div>
 
       <div class="sampling-row">
-        <label class="field-label">Temperature
-          <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="default" value="${p.temperature ?? ""}" />
+        <label class="field-label">Temperature <span class="hint">(default ${p.default_temperature ?? "—"})</span>
+          <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="${p.default_temperature ?? "default"}" value="${p.temperature ?? ""}" />
         </label>
-        <label class="field-label">Top-p
-          <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="default" value="${p.top_p ?? ""}" />
+        <label class="field-label">Top-p <span class="hint">(default ${p.default_top_p ?? "—"})</span>
+          <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="${p.default_top_p ?? "default"}" value="${p.top_p ?? ""}" />
         </label>
       </div>
 
@@ -260,12 +260,26 @@ async function poll() {
   }
 }
 
+// Maps the run's raw status column to a human label and a badge style.
+// Anything not complete/failed is an in-progress stage, shown in yellow.
+const STATUS_LABELS = {
+  pending: "Pending",
+  running_stage1: "Stage 1: dispatching to providers",
+  running_stage2: "Stage 2: fact-checking",
+  running_stage3: "Stage 3: synthesizing",
+  verifying_citations: "Verifying citations",
+  complete: "Complete",
+  failed: "Failed",
+};
+
 function render(data) {
   const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary, cost_by_provider } = data;
 
   const statusBadge = el("status-badge");
-  statusBadge.textContent = run.status;
-  statusBadge.className = "badge " + (run.status === "complete" ? "complete" : run.status === "failed" ? "failed" : "");
+  statusBadge.textContent = STATUS_LABELS[run.status] || run.status;
+  statusBadge.className = "badge " + (
+    run.status === "complete" ? "complete" : run.status === "failed" ? "failed" : "running"
+  );
 
   el("cost-summary").textContent =
     `stage1 $${cost_summary.stage1_usd.toFixed(4)} · stage2 $${cost_summary.stage2_usd.toFixed(4)} · ` +
@@ -295,6 +309,16 @@ function fmtTokensM(n) {
 function fmtTokens(stage) {
   if (!stage || (!stage.input_tokens && !stage.output_tokens)) return null;
   return `${fmtTokensM(stage.input_tokens)} in / ${fmtTokensM(stage.output_tokens)} out`;
+}
+
+// Output-token throughput for the stage-1 response specifically (the one
+// generation call with a single well-defined latency) — not meaningful to
+// average across stage 2/3 calls that happened at different times.
+function tokensPerSecond(stage1Response) {
+  if (!stage1Response || stage1Response.status !== "ok") return null;
+  const { output_tokens, latency_ms } = stage1Response;
+  if (!output_tokens || !latency_ms) return null;
+  return (output_tokens / (latency_ms / 1000)).toFixed(1);
 }
 
 function renderBubbles(stage1Responses, costByProvider) {
@@ -345,6 +369,19 @@ function renderBubbles(stage1Responses, costByProvider) {
       ${model ? `<div class="bubble-model">${escapeHtml(model)}</div>` : ""}
     `;
 
+    if (r) {
+      // Any provider with a stage-1 row (running, ok, or errored) can be
+      // clicked to jump straight to its full response/error below, instead
+      // of making the user hunt for the matching tab.
+      bubble.classList.add("clickable");
+      bubble.title = title || "Click to see the full response";
+      bubble.addEventListener("click", () => {
+        state.activeProvider = p.key;
+        renderStage1(stage1Responses);
+        document.querySelector(".stage1-section").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+
     const costs = costByProvider[p.key];
     if (costs) {
       const costLines = document.createElement("div");
@@ -362,7 +399,8 @@ function renderBubbles(stage1Responses, costByProvider) {
         `;
       }
       if (costs.total && costs.total.cost_usd) {
-        costLines.innerHTML += `<div class="bubble-cost-row total"><span>Total</span><span>${fmtCost(costs.total.cost_usd)}</span></div>`;
+        const tokPerSec = tokensPerSecond(r);
+        costLines.innerHTML += `<div class="bubble-cost-row total"><span>Total</span><span>${fmtCost(costs.total.cost_usd)}</span>${tokPerSec ? `<span class="bubble-tok-per-sec">${tokPerSec} tok/s</span>` : ""}</div>`;
       }
       if (costLines.innerHTML) bubble.appendChild(costLines);
     }
