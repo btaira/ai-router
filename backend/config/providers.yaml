@@ -51,7 +51,7 @@ providers:
     display_name: "Anthropic"
     base_url: "https://api.anthropic.com/v1/messages"
     api_key_env: "ANTHROPIC_API_KEY"
-    model: "claude-opus-4-8"
+    model: "claude-sonnet-5"
     max_tokens: 8192
     thinking:
       type: "adaptive"
@@ -64,6 +64,7 @@ providers:
     request_style: anthropic
     default_temperature: 1.0
     default_top_p: null   # unset — Anthropic doesn't document a fixed default; model-determined
+    sampling_locked: true   # extended thinking is always on above; Anthropic requires temperature=1 (and top_p unset) while it's enabled
     models:
       - id: "claude-opus-4-8"
         pricing: {input_per_million: 5.00, output_per_million: 25.00}
@@ -89,6 +90,7 @@ providers:
     request_style: openai_responses
     default_temperature: 1.0
     default_top_p: 1.0
+    sampling_locked: true   # reasoning-effort models reject a custom temperature/top_p (fixed at 1), same pattern as OpenAI's o-series
     models:
       - id: "gpt-5.6-sol"
         pricing: {input_per_million: 5.00, output_per_million: 30.00}
@@ -104,7 +106,7 @@ providers:
     display_name: "Google Gemini"
     base_url: "https://generativelanguage.googleapis.com/v1beta/models"
     api_key_env: "GOOGLE_API_KEY"
-    model: "gemini-2.5-pro"
+    model: "gemini-3.1-pro-preview"
     thinking_level: "high"
     tools:
       - google_search: {}
@@ -123,6 +125,7 @@ providers:
         pricing: {input_per_million: 0.25, output_per_million: 1.50}
       - id: "gemini-2.5-pro"
         pricing: {input_per_million: 1.25, output_per_million: 10.00}
+        status: "deprecated"   # shuts down 2026-10-16; use gemini-3.1-pro-preview instead (Google's own recommendation)
 
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
@@ -131,7 +134,7 @@ providers:
     display_name: "DeepSeek"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
-    model: "deepseek/deepseek-r1"
+    model: "deepseek/deepseek-v4-pro"
     reasoning:
       effort: "xhigh"
     tools:

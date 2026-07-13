@@ -1,6 +1,7 @@
 """YAML-driven configuration loading for providers and pipeline settings."""
 from __future__ import annotations
 
+import dataclasses
 import os
 import re
 from dataclasses import dataclass, field
@@ -29,6 +30,13 @@ class ProviderConfig:
     # UI just displays these next to the (optional) override inputs.
     default_temperature: float | None = None
     default_top_p: float | None = None
+    # True for providers whose reasoning/thinking mode is always-on and
+    # rejects a custom temperature/top_p outright (e.g. Anthropic requires
+    # temperature=1 while extended thinking is enabled). When locked, the UI
+    # disables the override inputs and the API rejects a PUT that tries to
+    # set one, instead of letting an invalid value reach the provider and
+    # fail stage 1 with a confusing error.
+    sampling_locked: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -60,7 +68,7 @@ class AppConfig:
 _KNOWN_TOP_LEVEL_KEYS = {
     "enabled", "display_name", "base_url", "api_key_env", "model",
     "request_style", "max_tokens", "max_output_tokens", "pricing", "models",
-    "default_temperature", "default_top_p",
+    "default_temperature", "default_top_p", "sampling_locked",
 }
 
 _ZERO_PRICING = {"input_per_million": 0.0, "output_per_million": 0.0}
@@ -93,6 +101,7 @@ def _build_provider_config(key: str, raw: dict[str, Any]) -> ProviderConfig:
         available_models=available_models,
         default_temperature=raw.get("default_temperature"),
         default_top_p=raw.get("default_top_p"),
+        sampling_locked=raw.get("sampling_locked", False),
         extra=extra,
     )
 
@@ -127,6 +136,22 @@ def load_config(path: Path | None = None) -> AppConfig:
     )
 
     return AppConfig(providers=providers, stages=stages, raw=raw)
+
+
+def strip_sampling_overrides(pcfg: ProviderConfig) -> ProviderConfig:
+    """Return a copy of pcfg with any temperature/top_p override removed.
+
+    Stage 1 is where a user's experimental sampling override is meant to
+    apply. Stage 2 (fact-checking) and stage 3 (synthesis) reuse the same
+    provider config, so without this a bad override that broke a provider's
+    stage-1 call would break that provider again as a fact-checker or
+    synthesizer — always using each provider's own default there means those
+    stages stay reliable regardless of what stage 1 is experimenting with.
+    """
+    if "temperature" not in pcfg.extra and "top_p" not in pcfg.extra:
+        return pcfg
+    extra = {k: v for k, v in pcfg.extra.items() if k not in ("temperature", "top_p")}
+    return dataclasses.replace(pcfg, extra=extra)
 
 
 _config: AppConfig | None = None

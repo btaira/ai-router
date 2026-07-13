@@ -4,6 +4,7 @@ import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 
 from .. import db
 from ..config import (
@@ -13,6 +14,7 @@ from ..config import (
     update_provider_model,
     update_provider_params,
 )
+from ..pipeline.export_markdown import build_run_markdown
 from ..pipeline.orchestrator import run_pipeline
 from ..schemas import (
     CreateRunRequest,
@@ -25,13 +27,24 @@ from ..schemas import (
 router = APIRouter(prefix="/api")
 
 _background_tasks: set[asyncio.Task] = set()
+# run_id -> in-flight pipeline task, so a Stop click can find and cancel it.
+# Entries are removed once the task finishes (whether by completing, failing,
+# or being cancelled) so this never grows for old runs.
+_run_tasks: dict[str, asyncio.Task] = {}
 
 
 def _launch(run_id: str, force_stage: str | None = None) -> None:
     cfg = get_config()
     task = asyncio.create_task(run_pipeline(run_id, cfg, force_stage=force_stage))
     _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    _run_tasks[run_id] = task
+
+    def _cleanup(_: asyncio.Task) -> None:
+        _background_tasks.discard(task)
+        if _run_tasks.get(run_id) is task:
+            del _run_tasks[run_id]
+
+    task.add_done_callback(_cleanup)
 
 
 @router.get("/config")
@@ -45,6 +58,7 @@ def get_provider_config():
                 "pricing": p.pricing, "available_models": p.available_models,
                 "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p"),
                 "default_temperature": p.default_temperature, "default_top_p": p.default_top_p,
+                "sampling_locked": p.sampling_locked,
             }
             for key, p in cfg.providers.items()
         ],
@@ -62,6 +76,14 @@ def set_provider_model(provider_key: str, req: UpdateProviderModelRequest):
     cfg = get_config()
     if provider_key not in cfg.providers:
         raise HTTPException(404, f"unknown provider: {provider_key}")
+    pcfg = cfg.providers[provider_key]
+    catalog_entry = next((m for m in pcfg.available_models if m.get("id") == req.model), None)
+    if catalog_entry and catalog_entry.get("status") not in (None, "working"):
+        raise HTTPException(
+            400,
+            f"{req.model!r} is marked {catalog_entry.get('status')!r} in the model catalog and can't be "
+            "selected — see backend/config/providers.yaml or MODELS_STATUS.md for the current replacement.",
+        )
     try:
         update_provider_model(provider_key, req.model)
     except ModelUpdateError as exc:
@@ -89,6 +111,13 @@ def set_provider_params(provider_key: str, req: UpdateProviderParamsRequest):
     cfg = get_config()
     if provider_key not in cfg.providers:
         raise HTTPException(404, f"unknown provider: {provider_key}")
+    pcfg = cfg.providers[provider_key]
+    if pcfg.sampling_locked and (req.temperature is not None or req.top_p is not None):
+        raise HTTPException(
+            400,
+            f"{pcfg.display_name} locks temperature/top_p while its reasoning mode is enabled "
+            "and rejects any custom value — leave both fields blank to use its default.",
+        )
     try:
         update_provider_params(provider_key, req.temperature, req.top_p)
     except ModelUpdateError as exc:
@@ -164,3 +193,26 @@ async def resume_run(run_id: str, req: ResumeRunRequest):
         raise HTTPException(400, f"invalid force_stage: {req.force_stage}")
     _launch(run_id, force_stage=req.force_stage)
     return {"run_id": run_id, "status": "resumed"}
+
+
+@router.post("/runs/{run_id}/cancel")
+def cancel_run(run_id: str):
+    run = db.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, "run not found")
+    task = _run_tasks.get(run_id)
+    if task is None or task.done():
+        raise HTTPException(400, "run is not currently in progress")
+    task.cancel()
+    return {"run_id": run_id, "status": "cancelling"}
+
+
+@router.get("/runs/{run_id}/export")
+def export_run(run_id: str):
+    data = _serialize_run(run_id)
+    markdown = build_run_markdown(**data)
+    return Response(
+        content=markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="ai-router-run-{run_id}.md"'},
+    )

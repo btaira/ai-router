@@ -3,7 +3,10 @@ const state = {
   pollTimer: null,
   activeProvider: null,
   providers: [],
+  isRunning: false,
 };
+
+const TERMINAL_STATUSES = ["complete", "failed", "cancelled"];
 
 const el = (id) => document.getElementById(id);
 
@@ -64,10 +67,16 @@ function renderModelSettings() {
   for (const p of state.providers) {
     const options = modelOptionsFor(p);
     const optionsHtml = options
-      .map(
-        (m) => `<option value="${escapeHtml(m.id)}" data-in="${m.pricing.input_per_million}" data-out="${m.pricing.output_per_million}" ${m.id === p.model ? "selected" : ""}>${escapeHtml(m.id)} — ${fmtRate(m.pricing.input_per_million)}/${fmtRate(m.pricing.output_per_million)} per M</option>`
-      )
+      .map((m) => {
+        const broken = m.status && m.status !== "working";
+        const label = `${m.id} — ${fmtRate(m.pricing.input_per_million)}/${fmtRate(m.pricing.output_per_million)} per M${broken ? ` (${m.status})` : ""}`;
+        return `<option value="${escapeHtml(m.id)}" data-in="${m.pricing.input_per_million}" data-out="${m.pricing.output_per_million}" ${m.id === p.model ? "selected" : ""} ${broken ? "disabled" : ""}>${escapeHtml(label)}</option>`;
+      })
       .join("");
+
+    const lockedNote = p.sampling_locked
+      ? `<div class="sampling-locked-note">Locked to default — ${escapeHtml(p.display_name)} rejects a custom temperature/top-p while its reasoning mode is enabled.</div>`
+      : "";
 
     const row = document.createElement("div");
     row.className = "model-row";
@@ -83,12 +92,13 @@ function renderModelSettings() {
 
       <div class="sampling-row">
         <label class="field-label">Temperature <span class="hint">(default ${p.default_temperature ?? "—"})</span>
-          <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="${p.default_temperature ?? "default"}" value="${p.temperature ?? ""}" />
+          <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="${p.default_temperature ?? "default"}" value="${p.temperature ?? ""}" ${p.sampling_locked ? "disabled" : ""} />
         </label>
         <label class="field-label">Top-p <span class="hint">(default ${p.default_top_p ?? "—"})</span>
-          <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="${p.default_top_p ?? "default"}" value="${p.top_p ?? ""}" />
+          <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="${p.default_top_p ?? "default"}" value="${p.top_p ?? ""}" ${p.sampling_locked ? "disabled" : ""} />
         </label>
       </div>
+      ${lockedNote}
 
       <div class="model-row-controls">
         <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
@@ -209,6 +219,12 @@ function escapeHtml(s) {
 
 async function submitRun(ev) {
   ev.preventDefault();
+
+  if (state.isRunning) {
+    await stopRun();
+    return;
+  }
+
   const prompt = el("prompt").value.trim();
   if (!prompt) return;
 
@@ -230,11 +246,37 @@ async function submitRun(ev) {
       return;
     }
     const { run_id } = await res.json();
+    // Optimistically flip to "Stop" right away — poll()/render() will keep
+    // it in sync with the run's actual status from here.
+    setRunning(true);
     await loadRunList();
     viewRun(run_id);
   } finally {
     el("submit-btn").disabled = false;
   }
+}
+
+function setRunning(isRunning) {
+  state.isRunning = isRunning;
+  const btn = el("submit-btn");
+  btn.textContent = isRunning ? "Stop" : "Run";
+  btn.classList.toggle("stop-btn", isRunning);
+}
+
+async function stopRun() {
+  if (!state.currentRunId) return;
+  const btn = el("submit-btn");
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/runs/${state.currentRunId}/cancel`, { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      alert(`Failed to stop run: ${err.detail || res.statusText}`);
+    }
+  } finally {
+    btn.disabled = false;
+  }
+  poll();
 }
 
 function viewRun(runId) {
@@ -254,14 +296,13 @@ async function poll() {
   const data = await res.json();
   render(data);
 
-  const terminal = data.run.status === "complete" || data.run.status === "failed";
-  if (!terminal) {
+  if (!TERMINAL_STATUSES.includes(data.run.status)) {
     state.pollTimer = setTimeout(poll, 2500);
   }
 }
 
 // Maps the run's raw status column to a human label and a badge style.
-// Anything not complete/failed is an in-progress stage, shown in yellow.
+// Anything not in TERMINAL_STATUSES is an in-progress stage, shown in yellow.
 const STATUS_LABELS = {
   pending: "Pending",
   running_stage1: "Stage 1: dispatching to providers",
@@ -270,6 +311,7 @@ const STATUS_LABELS = {
   verifying_citations: "Verifying citations",
   complete: "Complete",
   failed: "Failed",
+  cancelled: "Cancelled",
 };
 
 function render(data) {
@@ -278,15 +320,24 @@ function render(data) {
   const statusBadge = el("status-badge");
   statusBadge.textContent = STATUS_LABELS[run.status] || run.status;
   statusBadge.className = "badge " + (
-    run.status === "complete" ? "complete" : run.status === "failed" ? "failed" : "running"
+    run.status === "complete" ? "complete"
+      : run.status === "failed" ? "failed"
+      : run.status === "cancelled" ? "cancelled"
+      : "running"
   );
 
   el("cost-summary").textContent =
     `stage1 $${cost_summary.stage1_usd.toFixed(4)} · stage2 $${cost_summary.stage2_usd.toFixed(4)} · ` +
     `stage3 $${cost_summary.stage3_usd.toFixed(4)} · total $${cost_summary.total_usd.toFixed(4)}`;
 
-  el("resume-btn").classList.toggle("hidden", run.status !== "complete" && run.status !== "failed");
+  const terminal = TERMINAL_STATUSES.includes(run.status);
+  setRunning(!terminal);
+
+  el("resume-btn").classList.toggle("hidden", !terminal);
   el("resume-btn").onclick = () => resumeRun(run.run_id);
+
+  el("export-btn").classList.toggle("hidden", !terminal);
+  el("export-btn").onclick = () => { window.location.href = `/api/runs/${run.run_id}/export`; };
 
   renderBubbles(stage1_responses, cost_by_provider || {});
   renderSynthesis(synthesis, citation_verifications);
@@ -357,6 +408,9 @@ function renderBubbles(stage1Responses, costByProvider) {
         stateClass = "error";
         label = "error";
         title = r.error || "";
+      } else if (r.status === "cancelled") {
+        stateClass = "no-key";
+        label = "cancelled";
       }
     }
 

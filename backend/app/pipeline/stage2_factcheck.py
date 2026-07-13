@@ -24,7 +24,7 @@ import json
 import httpx
 
 from .. import db
-from ..config import AppConfig
+from ..config import AppConfig, strip_sampling_overrides
 from ..providers import ProviderResult, get_adapter
 from . import claim_diff
 from .json_utils import extract_json
@@ -64,7 +64,11 @@ def _build_prompt(prompt: str, subject: str, subject_answer: str, others: dict[s
 
 async def _call_checker(checker: str, subject: str, fc_prompt: str, client: httpx.AsyncClient,
                          cfg: AppConfig) -> tuple[str, str, ProviderResult]:
-    pcfg = cfg.providers[checker]
+    # Always use this provider's default sampling here, regardless of any
+    # temperature/top_p override configured for stage 1 — a bad override
+    # that broke stage 1 shouldn't also take this provider out as a
+    # fact-checker.
+    pcfg = strip_sampling_overrides(cfg.providers[checker])
     adapter = get_adapter(pcfg)
     try:
         result = await asyncio.wait_for(adapter.generate(client, fc_prompt), timeout=cfg.stages.stage2_timeout)

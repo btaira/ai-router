@@ -139,6 +139,20 @@ def update_run_status(run_id: str, status: str) -> None:
         )
 
 
+def mark_stray_running_rows_cancelled(run_id: str) -> None:
+    """On cancellation, any stage1/fact-check row still stuck at status
+    'running' means that provider call was cancelled mid-flight and never
+    got to write its own final status — without this it would show as
+    "thinking…" forever in the UI. Flip those specifically to 'cancelled'.
+    """
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE stage1_responses SET status='cancelled', error='cancelled by user' "
+            "WHERE run_id=? AND status='running'",
+            (run_id,),
+        )
+
+
 def get_run(run_id: str) -> dict[str, Any] | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()

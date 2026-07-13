@@ -19,8 +19,11 @@ the full settings UI described below have been exercised against live
 provider APIs, not just tests. All six providers ship **enabled by default**
 (toggle any off in "Model settings" if you don't have a key for one — a
 disabled or unconfigured provider is skipped cleanly rather than failing the
-run). 29 backend tests cover the pipeline logic, citation verification, and
-the config-editing endpoints.
+run). Every model in the catalog was verified against live vendor/OpenRouter
+docs as of 2026-07-14 (see [`MODELS_STATUS.md`](MODELS_STATUS.md)) — one,
+`gemini-2.5-pro`, was found deprecated and is blocked from selection. 31
+backend tests cover the pipeline logic, citation verification, sampling
+overrides, and the config-editing endpoints.
 
 ## Pipeline
 
@@ -64,6 +67,32 @@ The whole pipeline is resumable: each stage checks what's already in SQLite
 before spending money re-calling a provider, so `POST /api/runs/{id}/resume`
 can re-run just stage 3 (e.g. while iterating on the synthesis prompt)
 without re-paying for stage 1.
+
+Stage 2 and stage 3 always run with each provider's *default* sampling
+params, even if you set a temperature/top-p override for stage 1 — an
+override that happens to break a provider's stage-1 call shouldn't also
+knock that provider out as a fact-checker or synthesizer.
+
+### Stopping a run
+
+The Run button becomes a **Stop** button the instant a run starts. Clicking
+it calls `POST /api/runs/{id}/cancel`, which cancels the pipeline's asyncio
+task — `asyncio.gather` propagates that cancellation into every in-flight
+provider call immediately, so it actually stops mid-request rather than
+finishing the current stage first. Anything already written to SQLite is
+kept (a cancelled run can be resumed later like any other partial run); any
+provider call that was still in flight is marked `cancelled` rather than
+being left stuck showing "running" forever.
+
+### Exporting results
+
+Once a run reaches a terminal state (complete, failed, or cancelled), an
+**Export as Markdown** button appears next to Resume/re-run. It downloads a
+single self-contained `.md` file — prompt, run metadata, the synthesized
+answer with citation verification status, every fact-check flag, and each
+provider's full stage-1 answer (reasoning trace included, if it returned
+one) with its cost/token/latency breakdown — via
+`GET /api/runs/{id}/export`.
 
 ## Quick start
 
@@ -190,6 +219,10 @@ live (no restart) and persisted to `providers.yaml`:
   even hit Save. Cost tracking automatically follows whichever model is
   selected, since `pricing` is looked up from the catalog entry matching
   `model`, not stored separately — no separate step to keep them in sync.
+  A catalog entry can carry `status: "deprecated"` (see
+  [`MODELS_STATUS.md`](MODELS_STATUS.md)) — the dropdown greys it out and
+  the backend rejects selecting it with a 400, so you can't accidentally
+  point a run at a model that's about to stop working.
 - **Enable/disable toggle.** Flips a provider's `enabled` flag immediately
   on click (no Save needed). A disabled provider is skipped entirely in
   stage 1, can't be picked as a stage-2 fact-checker, and is removed from
@@ -201,10 +234,13 @@ live (no restart) and persisted to `providers.yaml`:
   `default_temperature`/`default_top_p` in `providers.yaml` — informational
   only, never sent unless you actually set an override). A "Sampling
   parameters (ⓘ)" info bubble at the top of the panel explains what
-  temperature and top-p actually do. Note some reasoning-mode
-  configurations reject custom sampling entirely — e.g. Anthropic requires
-  `temperature=1` while extended thinking is on — in which case that
-  provider's own API error surfaces normally, isolated from the other five.
+  temperature and top-p actually do. Providers whose reasoning mode
+  provably rejects a custom value (`sampling_locked: true` in
+  `providers.yaml` — currently Anthropic and OpenAI, both of which require
+  `temperature=1` while their extended-thinking/reasoning-effort mode is
+  on) have the input fields disabled entirely in the UI, and the backend
+  rejects a `PUT .../params` call that tries to set one anyway — so there's
+  no way to enter a value that vendor is known to reject.
 
 ### Run status and provider responses
 

@@ -137,6 +137,7 @@ button {
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ghost-btn { background: transparent; color: var(--accent); }
+.stop-btn { background: var(--bad); border-color: var(--bad); }
 
 .model-settings { font-size: 13px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; }
 .model-settings summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-weight: 600; }
@@ -153,6 +154,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sampling-row { display: flex; gap: 8px; }
 .sampling-row .field-label { flex: 1; }
 .sampling-row input { font-size: 12px; padding: 6px 8px; }
+.sampling-row input:disabled { opacity: 0.5; cursor: not-allowed; }
+.sampling-locked-note { font-size: 11px; color: var(--muted); font-style: italic; }
 .model-row-controls { display: flex; align-items: center; gap: 8px; }
 .model-row-controls .model-save-btn { padding: 6px 10px; font-size: 12px; border-color: var(--border); }
 .model-save-status { font-size: 11px; color: var(--muted); min-height: 14px; }
@@ -191,6 +194,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .badge.complete { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
 .badge.failed { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
 .badge.running { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); animation: badge-pulse 1.6s ease-in-out infinite; }
+.badge.cancelled { background: var(--border); color: var(--muted); }
 
 @keyframes badge-pulse {
   0%, 100% { opacity: 1; }
@@ -285,7 +289,7 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 .status-dot.ok { background: var(--ok); }
 .status-dot.error, .status-dot.timeout { background: var(--bad); }
 .status-dot.running { background: var(--accent); animation: pulse-dot 1.1s ease-in-out infinite; }
-.status-dot.no-key { background: var(--border); }
+.status-dot.no-key, .status-dot.cancelled { background: var(--border); }
 
 .provider-panel {
   background: var(--panel);

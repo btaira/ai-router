@@ -15,7 +15,7 @@ import re
 import httpx
 
 from .. import db
-from ..config import AppConfig
+from ..config import AppConfig, strip_sampling_overrides
 from ..providers import get_adapter
 
 _URL_RE = re.compile(r"https?://[^\s)\]}>\"']+")
@@ -95,7 +95,10 @@ async def run_stage3(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
 
     synth_prompt = _PROMPT_TEMPLATE.format(prompt=prompt, answers_block=answers_block, fact_check_block=fact_check_block)
 
-    pcfg = cfg.providers[provider_key]
+    # Always use this provider's default sampling for synthesis, regardless
+    # of any temperature/top_p override configured for stage 1 — see
+    # stage2_factcheck.py's _call_checker for the same rationale.
+    pcfg = strip_sampling_overrides(cfg.providers[provider_key])
     adapter = get_adapter(pcfg)
     async with httpx.AsyncClient(timeout=cfg.stages.stage3_timeout + 5) as client:
         try:
