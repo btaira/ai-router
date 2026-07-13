@@ -140,6 +140,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .model-settings { font-size: 13px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; }
 .model-settings summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-weight: 600; }
+.model-settings-intro { padding: 0 0 8px; color: var(--muted); font-size: 12px; }
+.model-settings-intro .field-label-row { font-size: 12px; }
 .model-row { padding: 10px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .model-row:first-of-type { border-top: none; }
 .model-row-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); margin-bottom: 2px; }

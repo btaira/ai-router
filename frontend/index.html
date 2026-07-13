@@ -10,7 +10,7 @@
 <div class="layout">
   <aside class="sidebar">
     <h1>AI Router</h1>
-    <p class="tagline">Ask once, get answers from every AI model you enable, cross-checked against each other for accuracy, and combined into one verified answer.</p>
+    <p class="tagline">One prompt, multiple AI models, one fact-checked answer.</p>
 
     <form id="run-form">
       <label class="field">
@@ -52,6 +52,19 @@
 
     <details class="model-settings">
       <summary>Model settings</summary>
+      <div class="model-settings-intro">
+        <span class="field-label-row">
+          Sampling parameters
+          <span class="info-bubble" tabindex="0">
+            <span class="info-icon" aria-hidden="true">ⓘ</span>
+            <span class="info-tooltip">
+              <strong>Temperature</strong> controls randomness — lower (near 0) is more focused and repeatable, higher (up to 2) is more varied and creative.<br /><br />
+              <strong>Top-p</strong> (nucleus sampling) limits token choices to the smallest set whose combined probability reaches p — lower values narrow the choices, 1 considers everything.<br /><br />
+              Usually adjust one or the other, not both. Leave a field blank to use that model's own default (shown as a hint below each field).
+            </span>
+          </span>
+        </span>
+      </div>
       <div id="model-settings-list"></div>
     </details>
 

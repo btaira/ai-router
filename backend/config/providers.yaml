@@ -47,7 +47,6 @@
 
 providers:
   anthropic:
-    temperature: 0.0
     enabled: true
     display_name: "Anthropic"
     base_url: "https://api.anthropic.com/v1/messages"
@@ -77,7 +76,6 @@ providers:
         pricing: {input_per_million: 5.00, output_per_million: 25.00}
 
   openai:
-    temperature: 0.0
     enabled: true
     display_name: "OpenAI"
     base_url: "https://api.openai.com/v1/responses"
@@ -102,7 +100,6 @@ providers:
         pricing: {input_per_million: 5.00, output_per_million: 30.00}
 
   google:
-    temperature: 0.0
     enabled: true
     display_name: "Google Gemini"
     base_url: "https://generativelanguage.googleapis.com/v1beta/models"
@@ -130,7 +127,6 @@ providers:
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
   deepseek:
-    temperature: 0.0
     enabled: true
     display_name: "DeepSeek"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
@@ -155,7 +151,6 @@ providers:
         pricing: {input_per_million: 0.2145, output_per_million: 0.3218}
 
   minimax:
-    temperature: 0.0
     enabled: true
     display_name: "MiniMax"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
@@ -180,7 +175,6 @@ providers:
         pricing: {input_per_million: 0.40, output_per_million: 2.20}
 
   moonshot:
-    temperature: 0.0
     enabled: true
     display_name: "Moonshot (Kimi)"
     base_url: "https://openrouter.ai/api/v1/chat/completions"

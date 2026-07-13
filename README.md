@@ -196,13 +196,15 @@ live (no restart) and persisted to `providers.yaml`:
   the "Synthesis model" dropdown; the backend also rejects a run that names
   a disabled provider as the synthesis provider.
 - **Temperature / top-p.** Optional per-provider sampling params, left
-  blank by default (provider's own default applies — shown as a hint next
-  to each field, from `default_temperature`/`default_top_p` in
-  `providers.yaml`, informational only and never sent unless you set an
-  override). Note some reasoning-mode configurations reject custom sampling
-  entirely — e.g. Anthropic requires `temperature=1` while extended
-  thinking is on — in which case that provider's own API error surfaces
-  normally, isolated from the other five.
+  blank by default so each model just uses its own native default (1.0 for
+  most; shown as a hint next to each field, from
+  `default_temperature`/`default_top_p` in `providers.yaml` — informational
+  only, never sent unless you actually set an override). A "Sampling
+  parameters (ⓘ)" info bubble at the top of the panel explains what
+  temperature and top-p actually do. Note some reasoning-mode
+  configurations reject custom sampling entirely — e.g. Anthropic requires
+  `temperature=1` while extended thinking is on — in which case that
+  provider's own API error surfaces normally, isolated from the other five.
 
 ### Run status and provider responses
 
