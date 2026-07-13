@@ -10,10 +10,13 @@
 <div class="layout">
   <aside class="sidebar">
     <h1>AI Router</h1>
-    <p class="tagline">Multi-LLM consensus &amp; fact-check</p>
+    <p class="tagline">Ask once, get answers from every AI model you enable, cross-checked against each other for accuracy, and combined into one verified answer.</p>
 
     <form id="run-form">
-      <textarea id="prompt" placeholder="Ask something..." rows="6" required></textarea>
+      <label class="field">
+        Your prompt
+        <textarea id="prompt" class="prompt-input" placeholder="Ask something..." rows="6" required></textarea>
+      </label>
 
       <label class="row">
         <input type="checkbox" id="skip-stage2" />
@@ -21,7 +24,17 @@
       </label>
 
       <label class="field">
-        Fact-check mode
+        <span class="field-label-row">
+          Fact-check mode
+          <span class="info-bubble" tabindex="0">
+            <span class="info-icon" aria-hidden="true">ⓘ</span>
+            <span class="info-tooltip">
+              <strong>Designated fact-checkers</strong> — a fixed set of models reviews every answer for unsupported or contradicted claims. Good default balance of cost and thoroughness.<br /><br />
+              <strong>Full mesh (deep audit)</strong> — every model cross-checks every other model's answer, including its own. Most thorough, most expensive.<br /><br />
+              <strong>Diff-then-check</strong> — a cheap, non-AI pass first flags where answers actually disagree, and only those disagreements get sent to a model for adjudication. Cheapest option.
+            </span>
+          </span>
+        </span>
         <select id="stage2-mode">
           <option value="designated_fact_checkers">Designated fact-checkers</option>
           <option value="full_mesh">Full mesh (deep audit)</option>

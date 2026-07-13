@@ -1,10 +1,26 @@
 # ai-router
 
-Multi-LLM consensus and fact-checking app. One prompt fans out to six LLM
-providers in their highest reasoning/thinking mode, a configurable set of
-models cross-examine each other's answers for factual errors, and a
-synthesis step produces one consolidated answer whose citations are
-verified with real HTTP requests before being shown as trustworthy.
+Ask one question, get answers from up to six different AI providers
+(Anthropic, OpenAI, Google, DeepSeek, MiniMax, and Moonshot/Kimi) running in
+their highest reasoning/thinking mode at once, have a configurable set of
+those models cross-check each other's answers for factual errors, then get
+one consolidated answer back — synthesized from whichever answer(s) actually
+held up best, with every citation verified by a real HTTP request before
+it's shown as trustworthy. The point is a second opinion you don't have to
+assemble by hand: instead of asking one model and hoping, or copy-pasting
+the same question into six tabs yourself, you get the disagreements
+surfaced, the weak claims flagged, and one answer built from the strongest
+evidence across all of them.
+
+## Status
+
+Working end-to-end: all three pipeline stages, citation verification, and
+the full settings UI described below have been exercised against live
+provider APIs, not just tests. All six providers ship **enabled by default**
+(toggle any off in "Model settings" if you don't have a key for one — a
+disabled or unconfigured provider is skipped cleanly rather than failing the
+run). 29 backend tests cover the pipeline logic, citation verification, and
+the config-editing endpoints.
 
 ## Pipeline
 
@@ -199,6 +215,9 @@ live (no restart) and persisted to `providers.yaml`:
   matching tab.
 - Each card's cost total also shows output tokens/second for that
   provider's stage-1 call, a quick throughput comparison across providers.
+- The prompt box has a visibly distinct border so it's unambiguous where to
+  type, and "Fact-check mode" has an (ⓘ) info bubble — hover or focus it —
+  explaining what each of the three modes actually does before you pick one.
 
 All of this is `PUT /api/config/providers/{key}/{model,enabled,params}`,
 each doing a targeted rewrite of just the relevant line(s) in

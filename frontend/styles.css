@@ -77,6 +77,54 @@ textarea, select, input[type="text"] {
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
+.prompt-input {
+  border: 2px solid var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.prompt-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.field-label-row { display: flex; align-items: center; gap: 4px; }
+.info-bubble { position: relative; display: inline-flex; }
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+.info-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 18px;
+  left: 0;
+  width: 260px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  text-transform: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.info-bubble:hover .info-tooltip,
+.info-bubble:focus .info-tooltip,
+.info-bubble:focus-within .info-tooltip {
+  display: block;
+}
+
 button {
   cursor: pointer;
   border-radius: 8px;
