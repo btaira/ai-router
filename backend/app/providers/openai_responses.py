@@ -22,6 +22,13 @@ class OpenAIResponsesAdapter(BaseAdapter):
         tools = cfg.extra.get("tools")
         if tools:
             body["tools"] = tools
+        # Note: some reasoning-effort configurations reject a custom
+        # temperature/top_p — if so, that's a normal per-provider API error,
+        # not a crash.
+        if "temperature" in cfg.extra:
+            body["temperature"] = cfg.extra["temperature"]
+        if "top_p" in cfg.extra:
+            body["top_p"] = cfg.extra["top_p"]
         return cfg.base_url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:

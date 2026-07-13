@@ -7,59 +7,119 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 
+let defaultSynthesisProvider = null;
+
 async function loadConfig() {
   const res = await fetch("/api/config");
   const cfg = await res.json();
   state.providers = cfg.providers;
+  defaultSynthesisProvider = cfg.stage3.default_synthesis_provider;
 
-  const select = el("synthesis-provider");
-  select.innerHTML = "";
-  for (const p of cfg.providers) {
-    const opt = document.createElement("option");
-    opt.value = p.key;
-    opt.textContent = p.display_name;
-    if (p.key === cfg.stage3.default_synthesis_provider) opt.selected = true;
-    select.appendChild(opt);
-  }
+  refreshSynthesisDropdown();
   el("stage2-mode").value = cfg.stage2.default_mode;
 
   renderModelSettings();
+}
+
+// Rebuilds only the "Synthesis model" <select> from state.providers, without
+// touching the Model settings panel — used after toggling a provider's
+// enabled state so an in-progress "saved" status message isn't wiped out by
+// a full renderModelSettings() re-render a moment after it appears.
+function refreshSynthesisDropdown() {
+  const select = el("synthesis-provider");
+  const previous = select.value;
+  select.innerHTML = "";
+  for (const p of state.providers) {
+    if (!p.enabled) continue; // disabled vendors aren't offered as the synthesis model
+    const opt = document.createElement("option");
+    opt.value = p.key;
+    opt.textContent = p.display_name;
+    select.appendChild(opt);
+  }
+  if ([...select.options].some((o) => o.value === previous)) {
+    select.value = previous;
+  } else if ([...select.options].some((o) => o.value === defaultSynthesisProvider)) {
+    select.value = defaultSynthesisProvider;
+  }
+}
+
+function fmtRate(n) {
+  return `$${Number(n).toFixed(2)}`;
+}
+
+function modelOptionsFor(p) {
+  const options = [...p.available_models];
+  if (!options.some((m) => m.id === p.model)) {
+    // current model isn't in the curated catalog (e.g. set via the API
+    // directly) — still show it as a selectable option so the dropdown
+    // reflects reality instead of silently switching models on the user.
+    options.unshift({ id: p.model, pricing: p.pricing });
+  }
+  return options;
 }
 
 function renderModelSettings() {
   const container = el("model-settings-list");
   container.innerHTML = "";
   for (const p of state.providers) {
+    const options = modelOptionsFor(p);
+    const optionsHtml = options
+      .map(
+        (m) => `<option value="${escapeHtml(m.id)}" data-in="${m.pricing.input_per_million}" data-out="${m.pricing.output_per_million}" ${m.id === p.model ? "selected" : ""}>${escapeHtml(m.id)} — ${fmtRate(m.pricing.input_per_million)}/${fmtRate(m.pricing.output_per_million)} per M</option>`
+      )
+      .join("");
+
     const row = document.createElement("div");
     row.className = "model-row";
     row.innerHTML = `
-      <label>${escapeHtml(p.display_name)}</label>
-      <div class="model-row-controls">
-        <input type="text" class="model-input" value="${escapeHtml(p.model)}" data-provider="${escapeHtml(p.key)}" />
-        <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
+      <label class="row model-row-toggle">
+        <input type="checkbox" class="provider-enabled-toggle" data-provider="${escapeHtml(p.key)}" ${p.enabled ? "checked" : ""} />
+        <strong>${escapeHtml(p.display_name)}</strong>
+      </label>
+
+      <label class="field-label">Model</label>
+      <select class="model-select" data-provider="${escapeHtml(p.key)}">${optionsHtml}</select>
+      <div class="model-cost-preview" data-provider="${escapeHtml(p.key)}">${fmtRate(p.pricing.input_per_million)} in / ${fmtRate(p.pricing.output_per_million)} out per million tokens</div>
+
+      <div class="sampling-row">
+        <label class="field-label">Temperature
+          <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="default" value="${p.temperature ?? ""}" />
+        </label>
+        <label class="field-label">Top-p
+          <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="default" value="${p.top_p ?? ""}" />
+        </label>
       </div>
-      <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
+
+      <div class="model-row-controls">
+        <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
+        <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
+      </div>
     `;
     container.appendChild(row);
   }
+
+  container.querySelectorAll(".model-select").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const opt = sel.selectedOptions[0];
+      const preview = document.querySelector(`.model-cost-preview[data-provider="${sel.dataset.provider}"]`);
+      preview.textContent = `${fmtRate(opt.dataset.in)} in / ${fmtRate(opt.dataset.out)} out per million tokens`;
+    });
+  });
+  container.querySelectorAll(".provider-enabled-toggle").forEach((cb) => {
+    cb.addEventListener("change", () => toggleProviderEnabled(cb.dataset.provider, cb.checked));
+  });
   container.querySelectorAll(".model-save-btn").forEach((btn) => {
-    btn.addEventListener("click", () => saveProviderModel(btn.dataset.provider));
+    btn.addEventListener("click", () => saveProviderSettings(btn.dataset.provider));
   });
 }
 
-async function saveProviderModel(providerKey) {
-  const input = document.querySelector(`.model-input[data-provider="${providerKey}"]`);
+async function toggleProviderEnabled(providerKey, enabled) {
   const statusEl = document.querySelector(`.model-save-status[data-provider="${providerKey}"]`);
-  const newModel = input.value.trim();
-  if (!newModel) return;
-
-  statusEl.textContent = "saving…";
-  statusEl.className = "model-save-status";
   try {
-    const res = await fetch(`/api/config/providers/${providerKey}/model`, {
+    const res = await fetch(`/api/config/providers/${providerKey}/enabled`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: newModel }),
+      body: JSON.stringify({ enabled }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -69,7 +129,56 @@ async function saveProviderModel(providerKey) {
     }
     const data = await res.json();
     const p = state.providers.find((p) => p.key === providerKey);
-    if (p) p.model = data.model;
+    if (p) p.enabled = data.enabled;
+    statusEl.textContent = data.enabled ? "enabled" : "disabled — skipped in future runs";
+    statusEl.className = "model-save-status ok";
+    refreshSynthesisDropdown(); // only enabled providers are offered as the synthesis model
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "model-save-status error";
+  }
+}
+
+async function saveProviderSettings(providerKey) {
+  const select = document.querySelector(`.model-select[data-provider="${providerKey}"]`);
+  const tempInput = document.querySelector(`.temperature-input[data-provider="${providerKey}"]`);
+  const topPInput = document.querySelector(`.top-p-input[data-provider="${providerKey}"]`);
+  const statusEl = document.querySelector(`.model-save-status[data-provider="${providerKey}"]`);
+  const newModel = select.value;
+  const temperature = tempInput.value === "" ? null : Number(tempInput.value);
+  const topP = topPInput.value === "" ? null : Number(topPInput.value);
+
+  statusEl.textContent = "saving…";
+  statusEl.className = "model-save-status";
+  try {
+    const modelRes = await fetch(`/api/config/providers/${providerKey}/model`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: newModel }),
+    });
+    const paramsRes = await fetch(`/api/config/providers/${providerKey}/params`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ temperature, top_p: topP }),
+    });
+
+    if (!modelRes.ok || !paramsRes.ok) {
+      const failed = !modelRes.ok ? modelRes : paramsRes;
+      const err = await failed.json().catch(() => ({ detail: failed.statusText }));
+      statusEl.textContent = `error: ${err.detail || failed.statusText}`;
+      statusEl.className = "model-save-status error";
+      return;
+    }
+
+    const modelData = await modelRes.json();
+    const paramsData = await paramsRes.json();
+    const p = state.providers.find((p) => p.key === providerKey);
+    if (p) {
+      p.model = modelData.model;
+      p.pricing = modelData.pricing;
+      p.temperature = paramsData.temperature;
+      p.top_p = paramsData.top_p;
+    }
     statusEl.textContent = "saved — takes effect next run";
     statusEl.className = "model-save-status ok";
   } catch (e) {
@@ -203,7 +312,10 @@ function renderBubbles(stage1Responses, costByProvider) {
     let label = "waiting…";
     let title = "";
 
-    if (!p.has_api_key) {
+    if (p.enabled === false) {
+      stateClass = "no-key";
+      label = "disabled";
+    } else if (!p.has_api_key) {
       stateClass = "no-key";
       label = "no API key";
     } else if (r) {

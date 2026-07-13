@@ -30,7 +30,12 @@ verified with real HTTP requests before being shown as trustworthy.
    run to skip this stage entirely for a cheap/fast pass.
 3. **Stage 3 — synthesis.** One designated provider
    (`pipeline.stage3.synthesis_provider`, default `anthropic`) combines the
-   stage-1 answers and stage-2 fact-check notes into one answer.
+   stage-1 answers and stage-2 fact-check notes into one answer. The
+   synthesis prompt explicitly instructs the model not to just blend/average
+   all six answers together: it evaluates each answer's accuracy using the
+   fact-check notes as evidence, builds the consolidated answer primarily
+   from whichever answer(s) are actually strongest, and only pulls in extra
+   detail from the others where it adds real value.
 4. **Citation verification.** This is the part that matters most: the
    synthesis model's citations are never trusted as-is. Every URL it emits
    is checked with a live `HEAD` (falling back to `GET`) request — no LLM
@@ -158,15 +163,38 @@ caching discounts, which can cut effective cost 60-90% on repeat context —
 so these are a conservative upper bound). Re-verify periodically; they
 change often.
 
-### Changing which model a provider uses
+### Model settings — choosing models, enabling/disabling vendors, sampling params
 
-Each provider's `model` string can be changed without editing YAML or
-restarting the server: open "Model settings" in the sidebar, edit the
-model field for any provider, and click Save. This calls
-`PUT /api/config/providers/{key}/model`, which rewrites just that one
-`model:` line in `providers.yaml` (preserving every comment and the rest
-of the file — not a full YAML re-dump) and hot-reloads the in-memory
-config, so the next run picks it up immediately.
+Open "Model settings" in the sidebar for per-provider controls, all applied
+live (no restart) and persisted to `providers.yaml`:
+
+- **Model dropdown.** Each provider offers a curated `models:` catalog
+  (2 tiers each right now — a flagship and a cheaper/faster alternative) with
+  live per-million-token pricing shown right in the dropdown and updated the
+  instant you change the selection, before you even hit Save. Cost tracking
+  automatically follows whichever model is selected, since `pricing` is
+  looked up from the catalog entry matching `model`, not stored separately —
+  no separate step to keep them in sync.
+- **Enable/disable toggle.** Flips a provider's `enabled` flag immediately
+  on click (no Save needed). A disabled provider is skipped entirely in
+  stage 1, can't be picked as a stage-2 fact-checker, and is removed from
+  the "Synthesis model" dropdown; the backend also rejects a run that names
+  a disabled provider as the synthesis provider.
+- **Temperature / top-p.** Optional per-provider sampling params, left
+  blank by default (provider's own default applies). Note some
+  reasoning-mode configurations reject custom sampling entirely — e.g.
+  Anthropic requires `temperature=1` while extended thinking is on — in
+  which case that provider's own API error surfaces normally, isolated from
+  the other five.
+
+All of this is `PUT /api/config/providers/{key}/{model,enabled,params}`,
+each doing a targeted rewrite of just the relevant line(s) in
+`providers.yaml` (`config.set_provider_field`) — comments and formatting
+survive, and the in-memory config hot-reloads so the very next run picks up
+the change.
+
+To add more models to a provider's dropdown, add entries to its `models:`
+list in `providers.yaml` with verified current pricing.
 
 ## Cost control
 

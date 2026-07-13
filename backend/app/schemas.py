@@ -16,3 +16,12 @@ class ResumeRunRequest(BaseModel):
 
 class UpdateProviderModelRequest(BaseModel):
     model: str = Field(min_length=1)
+
+
+class UpdateProviderEnabledRequest(BaseModel):
+    enabled: bool
+
+
+class UpdateProviderParamsRequest(BaseModel):
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    top_p: float | None = Field(default=None, gt=0, le=1)

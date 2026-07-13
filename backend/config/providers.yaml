@@ -23,12 +23,25 @@
 # "vendor/model-name" convention, which does not match the vendors' own
 # native model names.
 #
-# PRICING: all `pricing` blocks below are list/base per-token rates
-# (verified against provider/OpenRouter pricing pages), not accounting for
-# prompt caching discounts (which can cut effective cost 60-90% on repeat
-# context) — so the app's cost estimates are a conservative upper bound,
-# not what you'll necessarily be billed. Re-check these periodically;
-# they change often.
+# MODELS / PRICING: `models:` is the selectable catalog shown in the UI's
+# "Model settings" dropdown — each entry's `pricing` is that specific
+# model's list/base per-token rate (verified against provider/OpenRouter
+# pricing pages; not accounting for prompt-caching discounts, which can cut
+# effective cost 60-90% on repeat context, so treat these as a conservative
+# upper bound). `model:` selects which catalog entry is active; changing it
+# from the UI also happens to keep pricing correct automatically, since cost
+# is looked up by matching `model` against this catalog, not stored
+# separately. Re-verify prices periodically — they change often. A model
+# string can still be set to something outside this catalog (e.g. via the
+# API directly); in that case cost tracking falls back to $0/M until you
+# add it here.
+#
+# SAMPLING: `temperature` / `top_p` are optional and omitted by default
+# (each provider's own default applies). Set from the UI's Model settings
+# panel. Note some reasoning-mode configurations reject custom sampling
+# params entirely (e.g. Anthropic requires temperature=1 while extended
+# thinking is enabled) — if that happens the provider's own error message
+# will explain why, surfaced per-provider without blocking the other five.
 
 providers:
   anthropic:
@@ -47,9 +60,12 @@ providers:
         name: "web_search"
         max_uses: 5
     request_style: anthropic
-    pricing:
-      input_per_million: 5.00
-      output_per_million: 25.00
+    models:
+      - id: "claude-opus-4-8"
+        pricing: {input_per_million: 5.00, output_per_million: 25.00}
+      - id: "claude-sonnet-5"
+        # Introductory pricing through 2026-08-31; standard $3/$15 after.
+        pricing: {input_per_million: 2.00, output_per_million: 10.00}
 
   openai:
     enabled: true
@@ -63,9 +79,11 @@ providers:
       - type: "web_search"
     max_output_tokens: 8192
     request_style: openai_responses
-    pricing:
-      input_per_million: 5.00
-      output_per_million: 30.00
+    models:
+      - id: "gpt-5.6-sol"
+        pricing: {input_per_million: 5.00, output_per_million: 30.00}
+      - id: "gpt-5.6-terra"
+        pricing: {input_per_million: 2.50, output_per_million: 15.00}
 
   google:
     enabled: true
@@ -78,12 +96,13 @@ providers:
       - google_search: {}
     max_output_tokens: 8192
     request_style: google_native
-    pricing:
-      # Rate for prompts under 200K tokens; input/output double to $4/$18
-      # above that threshold (we don't track this tier switch — see cost
-      # note in README).
-      input_per_million: 2.00
-      output_per_million: 12.00
+    models:
+      - id: "gemini-3.1-pro-preview"
+        # Rate for prompts under 200K tokens; input/output double to $4/$18
+        # above that threshold (we don't track this tier switch).
+        pricing: {input_per_million: 2.00, output_per_million: 12.00}
+      - id: "gemini-3.5-flash"
+        pricing: {input_per_million: 1.50, output_per_million: 9.00}
 
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
@@ -99,9 +118,11 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
-    pricing:
-      input_per_million: 0.435
-      output_per_million: 0.87
+    models:
+      - id: "deepseek/deepseek-v4-pro"
+        pricing: {input_per_million: 0.435, output_per_million: 0.87}
+      - id: "deepseek/deepseek-v4-flash"
+        pricing: {input_per_million: 0.09, output_per_million: 0.18}
 
   minimax:
     enabled: true
@@ -115,9 +136,11 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
-    pricing:
-      input_per_million: 0.24
-      output_per_million: 0.96
+    models:
+      - id: "minimax/minimax-m2.7"
+        pricing: {input_per_million: 0.24, output_per_million: 0.96}
+      - id: "minimax/minimax-m2"
+        pricing: {input_per_million: 0.255, output_per_million: 1.02}
 
   moonshot:
     enabled: true
@@ -131,9 +154,11 @@ providers:
       - type: "openrouter:web_search"
     max_tokens: 8192
     request_style: openai_chat
-    pricing:
-      input_per_million: 0.60
-      output_per_million: 2.50
+    models:
+      - id: "moonshotai/kimi-k2-thinking"
+        pricing: {input_per_million: 0.60, output_per_million: 2.50}
+      - id: "moonshotai/kimi-k2.6"
+        pricing: {input_per_million: 0.66, output_per_million: 3.41}
 
 pipeline:
   stage1:

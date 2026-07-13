@@ -26,6 +26,13 @@ class AnthropicAdapter(BaseAdapter):
         tools = cfg.extra.get("tools")
         if tools:
             body["tools"] = tools
+        # Note: Anthropic rejects a custom temperature/top_p while extended
+        # thinking is enabled (must be left at default) — if set, that
+        # surfaces as a normal per-provider API error, not a crash.
+        if "temperature" in cfg.extra:
+            body["temperature"] = cfg.extra["temperature"]
+        if "top_p" in cfg.extra:
+            body["top_p"] = cfg.extra["top_p"]
         return cfg.base_url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:

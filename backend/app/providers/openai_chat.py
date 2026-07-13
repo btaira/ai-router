@@ -12,7 +12,10 @@ from __future__ import annotations
 
 from .base import BaseAdapter
 
-_PASSTHROUGH_EXTRA_KEYS = ("reasoning_effort", "thinking", "preserve_thinking", "reasoning", "tools")
+_PASSTHROUGH_EXTRA_KEYS = (
+    "reasoning_effort", "thinking", "preserve_thinking", "reasoning", "tools",
+    "temperature", "top_p",
+)
 
 
 class OpenAIChatAdapter(BaseAdapter):

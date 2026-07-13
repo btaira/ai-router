@@ -1,6 +1,12 @@
 import pytest
 
-from app.config import ModelUpdateError, load_config, update_provider_model
+from app.config import (
+    ModelUpdateError,
+    load_config,
+    update_provider_enabled,
+    update_provider_model,
+    update_provider_params,
+)
 from tests.conftest import TEST_YAML
 
 
@@ -46,3 +52,34 @@ def test_handles_quotes_in_new_model_name(yaml_path):
 def test_unknown_provider_raises(yaml_path):
     with pytest.raises(ModelUpdateError, match="not found"):
         update_provider_model("nonexistent", "x", path=yaml_path)
+
+
+def test_toggle_enabled_replaces_existing_field(yaml_path):
+    update_provider_enabled("anthropic", False, path=yaml_path)
+    assert load_config(yaml_path).providers["anthropic"].enabled is False
+    update_provider_enabled("anthropic", True, path=yaml_path)
+    assert load_config(yaml_path).providers["anthropic"].enabled is True
+    # other providers untouched
+    assert load_config(yaml_path).providers["openai"].enabled is True
+
+
+def test_sampling_params_insert_update_and_clear(yaml_path):
+    # deepseek has no temperature/top_p line in the fixture yaml — inserting
+    update_provider_params("deepseek", temperature=0.7, top_p=0.9, path=yaml_path)
+    cfg = load_config(yaml_path)
+    assert cfg.providers["deepseek"].extra["temperature"] == 0.7
+    assert cfg.providers["deepseek"].extra["top_p"] == 0.9
+
+    # update in place
+    update_provider_params("deepseek", temperature=0.2, top_p=0.9, path=yaml_path)
+    cfg = load_config(yaml_path)
+    assert cfg.providers["deepseek"].extra["temperature"] == 0.2
+
+    # clearing both removes them from extra entirely
+    update_provider_params("deepseek", temperature=None, top_p=None, path=yaml_path)
+    cfg = load_config(yaml_path)
+    assert "temperature" not in cfg.providers["deepseek"].extra
+    assert "top_p" not in cfg.providers["deepseek"].extra
+
+    # unrelated fields still intact
+    assert cfg.providers["deepseek"].model == "deepseek-test"

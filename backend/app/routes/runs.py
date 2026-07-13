@@ -6,9 +6,21 @@ import json
 from fastapi import APIRouter, HTTPException
 
 from .. import db
-from ..config import ModelUpdateError, get_config, update_provider_model
+from ..config import (
+    ModelUpdateError,
+    get_config,
+    update_provider_enabled,
+    update_provider_model,
+    update_provider_params,
+)
 from ..pipeline.orchestrator import run_pipeline
-from ..schemas import CreateRunRequest, ResumeRunRequest, UpdateProviderModelRequest
+from ..schemas import (
+    CreateRunRequest,
+    ResumeRunRequest,
+    UpdateProviderEnabledRequest,
+    UpdateProviderModelRequest,
+    UpdateProviderParamsRequest,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -30,6 +42,8 @@ def get_provider_config():
             {
                 "key": key, "display_name": p.display_name, "model": p.model,
                 "enabled": p.enabled, "has_api_key": bool(p.api_key),
+                "pricing": p.pricing, "available_models": p.available_models,
+                "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p"),
             }
             for key, p in cfg.providers.items()
         ],
@@ -52,7 +66,35 @@ def set_provider_model(provider_key: str, req: UpdateProviderModelRequest):
     except ModelUpdateError as exc:
         raise HTTPException(500, str(exc)) from exc
     cfg = get_config(refresh=True)
-    return {"key": provider_key, "model": cfg.providers[provider_key].model}
+    p = cfg.providers[provider_key]
+    return {"key": provider_key, "model": p.model, "pricing": p.pricing}
+
+
+@router.put("/config/providers/{provider_key}/enabled")
+def set_provider_enabled(provider_key: str, req: UpdateProviderEnabledRequest):
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    try:
+        update_provider_enabled(provider_key, req.enabled)
+    except ModelUpdateError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    cfg = get_config(refresh=True)
+    return {"key": provider_key, "enabled": cfg.providers[provider_key].enabled}
+
+
+@router.put("/config/providers/{provider_key}/params")
+def set_provider_params(provider_key: str, req: UpdateProviderParamsRequest):
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    try:
+        update_provider_params(provider_key, req.temperature, req.top_p)
+    except ModelUpdateError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    cfg = get_config(refresh=True)
+    p = cfg.providers[provider_key]
+    return {"key": provider_key, "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p")}
 
 
 @router.post("/runs")
@@ -62,12 +104,15 @@ async def create_run(req: CreateRunRequest):
         raise HTTPException(400, f"invalid stage2_mode: {req.stage2_mode}")
     if req.synthesis_provider and req.synthesis_provider not in cfg.providers:
         raise HTTPException(400, f"unknown synthesis_provider: {req.synthesis_provider}")
+    synthesis_provider = req.synthesis_provider or cfg.stages.synthesis_provider
+    if not cfg.providers[synthesis_provider].enabled:
+        raise HTTPException(400, f"synthesis_provider {synthesis_provider!r} is disabled")
 
     run_id = db.create_run(
         prompt=req.prompt,
         skip_stage2=req.skip_stage2,
         stage2_mode=req.stage2_mode or cfg.stages.stage2_mode,
-        synthesis_provider=req.synthesis_provider or cfg.stages.synthesis_provider,
+        synthesis_provider=synthesis_provider,
     )
     _launch(run_id)
     return {"run_id": run_id}

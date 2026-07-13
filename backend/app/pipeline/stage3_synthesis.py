@@ -31,7 +31,12 @@ USER PROMPT:
 --- STAGE 2: FACT-CHECK NOTES (verdict + confidence + suggested correction per flagged claim) ---
 {fact_check_block}
 
-Write one consolidated, accurate answer to the user's prompt. Prefer claims that are supported/consensus across models; apply corrections from the fact-check notes; explicitly note any point where models genuinely disagree and it isn't resolved.
+Do not simply average, blend, or concatenate all six answers together — that rewards verbosity and consensus over correctness. Instead:
+
+1. Evaluate each answer's accuracy and completeness using the fact-check notes as evidence. A claim marked "contradicted" or "unsupported" should be trusted less on that specific point than one marked "supported" — regardless of which model said it.
+2. Identify whichever answer (or answers, if several genuinely converge on the same substance) is strongest overall, and build your consolidated answer primarily from that one, applying corrections from the fact-check notes.
+3. Pull in additional detail from the other answers only where it adds real value the strongest answer is missing — not merely to represent every model.
+4. If one answer is clearly more accurate, complete, or better-reasoned than the rest, prefer it and say so briefly. If models genuinely disagree and the fact-check notes don't resolve it, say that explicitly rather than papering over it.
 
 If you cite a source, include its literal URL in parentheses right after the claim, e.g. "(https://example.com/page)". Only include a URL if it appeared verbatim in one of the six answers above, or if you are highly confident it is a real, resolvable URL — every URL you output will be programmatically checked with a live HTTP request and removed from the final answer if it doesn't resolve, so do not pad the answer with invented-looking citations."""
 

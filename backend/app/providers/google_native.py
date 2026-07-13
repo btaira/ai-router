@@ -25,6 +25,10 @@ class GoogleNativeAdapter(BaseAdapter):
         tools = cfg.extra.get("tools")
         if tools:
             body["tools"] = tools
+        if "temperature" in cfg.extra:
+            body["generationConfig"]["temperature"] = cfg.extra["temperature"]
+        if "top_p" in cfg.extra:
+            body["generationConfig"]["topP"] = cfg.extra["top_p"]
         return url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, str | None, int | None, int | None]:
