@@ -1,11 +1,16 @@
 """Unified provider interface.
 
-Every adapter implements `generate(client, prompt) -> ProviderResult` so the
-stage 1 dispatcher, stage 2 fact-checkers, and stage 3 synthesis step can all
-call any provider identically. Adapters differ only in how they build the
-HTTP request and parse the response for their provider's API shape
-(`request_style` in providers.yaml selects which adapter class handles a
-given provider).
+Every adapter implements `generate(client, prompt, history) -> ProviderResult`
+so the stage 1 dispatcher, stage 2 fact-checkers, stage 3 synthesis step, and
+the post-synthesis follow-up chat can all call any provider identically.
+Adapters differ only in how they build the HTTP request and parse the
+response for their provider's API shape (`request_style` in providers.yaml
+selects which adapter class handles a given provider).
+
+`history` is an optional list of prior turns as
+`[{"role": "user"|"assistant", "content": str}, ...]`, used only by the
+follow-up chat (stage 1/2/3 never pass it — a fresh conversation each time).
+Each adapter maps this generic shape onto its own native multi-turn format.
 """
 from __future__ import annotations
 
@@ -50,7 +55,7 @@ class BaseAdapter:
     def __init__(self, cfg: ProviderConfig):
         self.cfg = cfg
 
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
+    def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         """Return (url, headers, json_body)."""
         raise NotImplementedError
 
@@ -58,14 +63,14 @@ class BaseAdapter:
         """Return (text, thinking_text, input_tokens, output_tokens)."""
         raise NotImplementedError
 
-    async def generate(self, client: httpx.AsyncClient, prompt: str) -> ProviderResult:
+    async def generate(self, client: httpx.AsyncClient, prompt: str, history: list[dict] | None = None) -> ProviderResult:
         if not self.cfg.api_key:
             return ProviderResult(
                 provider=self.cfg.key, model=self.cfg.model, status="error",
                 error=f"missing API key: set ${self.cfg.api_key_env}",
             )
 
-        url, headers, body = self.build_request(prompt)
+        url, headers, body = self.build_request(prompt, history)
         start = time.monotonic()
         try:
             resp = await client.post(url, headers=headers, json=body)

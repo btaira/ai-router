@@ -19,15 +19,16 @@ _PASSTHROUGH_EXTRA_KEYS = (
 
 
 class OpenAIChatAdapter(BaseAdapter):
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
+    def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         cfg = self.cfg
         headers = {
             "Authorization": f"Bearer {cfg.api_key}",
             "content-type": "application/json",
         }
+        messages = [*(history or []), {"role": "user", "content": prompt}]
         body: dict = {
             "model": cfg.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": cfg.max_tokens,
         }
         for key in _PASSTHROUGH_EXTRA_KEYS:

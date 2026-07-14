@@ -33,6 +33,7 @@ def build_run_markdown(
     citation_verifications: list[dict[str, Any]],
     cost_summary: dict[str, float],
     cost_by_provider: dict[str, dict[str, Any]],
+    followup_messages: list[dict[str, Any]] | None = None,
 ) -> str:
     lines: list[str] = []
     w = lines.append
@@ -50,7 +51,8 @@ def build_run_markdown(
         f"- **Total cost:** {_fmt_cost(cost_summary.get('total_usd'))} "
         f"(stage1 {_fmt_cost(cost_summary.get('stage1_usd'))} · "
         f"stage2 {_fmt_cost(cost_summary.get('stage2_usd'))} · "
-        f"stage3 {_fmt_cost(cost_summary.get('stage3_usd'))})"
+        f"stage3 {_fmt_cost(cost_summary.get('stage3_usd'))} · "
+        f"follow-up {_fmt_cost(cost_summary.get('followup_usd'))})"
     )
     w("")
     w("---")
@@ -79,6 +81,20 @@ def build_run_markdown(
         else:
             w("_No citations were output by the synthesis step._")
             w("")
+
+    if followup_messages:
+        w("## Follow-up Dialog")
+        w("")
+        for m in followup_messages:
+            if m["role"] == "user":
+                w(f"**You:** {m['content']}")
+                w("")
+            elif m.get("status") == "ok":
+                w(f"**{run.get('synthesis_provider')}:** {m['content']}")
+                w("")
+            else:
+                w(f"**{run.get('synthesis_provider')}:** _{m.get('status')}: {m.get('error')}_")
+                w("")
 
     w("---")
     w("")

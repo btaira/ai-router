@@ -5,15 +5,22 @@ from .base import BaseAdapter
 
 
 class GoogleNativeAdapter(BaseAdapter):
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
+    def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         cfg = self.cfg
         url = f"{cfg.base_url}/{cfg.model}:generateContent"
         headers = {
             "x-goog-api-key": cfg.api_key,
             "content-type": "application/json",
         }
+        # Gemini calls the AI's turn "model", not "assistant" — map the
+        # generic history shape onto that.
+        contents = [
+            {"role": "model" if turn["role"] == "assistant" else "user", "parts": [{"text": turn["content"]}]}
+            for turn in (history or [])
+        ]
+        contents.append({"role": "user", "parts": [{"text": prompt}]})
         body: dict = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents": contents,
             "generationConfig": {"maxOutputTokens": cfg.max_tokens},
         }
         thinking_level = cfg.extra.get("thinking_level")

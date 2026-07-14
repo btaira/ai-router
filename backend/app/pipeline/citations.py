@@ -79,12 +79,20 @@ async def _verify_one(client: httpx.AsyncClient, url: str, retries: int) -> tupl
     return None, False, None, last_error or "request failed"
 
 
-async def verify_citations(run_id: str, cfg: AppConfig, force: bool = False) -> list[dict]:
-    synthesis = db.get_synthesis_result(run_id)
-    if not synthesis or synthesis["status"] != "ok" or not synthesis.get("synthesis_text"):
-        return []
+async def verify_citations(run_id: str, cfg: AppConfig, force: bool = False, text: str | None = None) -> list[dict]:
+    """Extract and verify URLs from `text` (default: the run's synthesis
+    answer). Passing `text` explicitly lets follow-up replies get the same
+    live-verification treatment as the initial synthesis — verified URLs are
+    stored keyed by run_id + url, so a citation repeated across the
+    synthesis and a follow-up is only checked once.
+    """
+    if text is None:
+        synthesis = db.get_synthesis_result(run_id)
+        if not synthesis or synthesis["status"] != "ok" or not synthesis.get("synthesis_text"):
+            return []
+        text = synthesis["synthesis_text"]
 
-    urls = extract_urls(synthesis["synthesis_text"])
+    urls = extract_urls(text)
     if not urls:
         return []
 

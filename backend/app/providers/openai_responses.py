@@ -5,15 +5,19 @@ from .base import BaseAdapter
 
 
 class OpenAIResponsesAdapter(BaseAdapter):
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
+    def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         cfg = self.cfg
         headers = {
             "Authorization": f"Bearer {cfg.api_key}",
             "content-type": "application/json",
         }
+        # `input` accepts either a plain string (single user turn) or a list
+        # of role/content items — use the list form whenever there's history
+        # so multi-turn follow-ups actually carry prior context.
+        input_value = [*(history or []), {"role": "user", "content": prompt}] if history else prompt
         body: dict = {
             "model": cfg.model,
-            "input": prompt,
+            "input": input_value,
             "max_output_tokens": cfg.max_tokens,
         }
         reasoning = cfg.extra.get("reasoning")

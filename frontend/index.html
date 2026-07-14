@@ -51,6 +51,12 @@
         <select id="synthesis-provider"></select>
       </label>
 
+      <label class="field">
+        Attach a document (optional)
+        <input type="file" id="doc-file" accept=".txt,.md,.csv,.json,.yaml,.yml,.log,.pdf,.docx" />
+      </label>
+      <div id="doc-status" class="doc-status hidden"></div>
+
       <button type="submit" id="submit-btn">Run</button>
     </form>
 
@@ -101,6 +107,15 @@
         <h2>Synthesized answer</h2>
         <div id="synthesis-text" class="synthesis-text"></div>
         <div id="citations" class="citations"></div>
+
+        <div id="followup-section" class="followup-section hidden">
+          <div class="followup-heading">Go deeper</div>
+          <div id="followup-thread" class="followup-thread"></div>
+          <form id="followup-form" class="followup-form">
+            <textarea id="followup-input" class="followup-input" placeholder="Ask a follow-up to refine the answer..." rows="2"></textarea>
+            <button type="submit" id="followup-submit">Send</button>
+          </form>
+        </div>
       </section>
 
       <section class="stage2-section">

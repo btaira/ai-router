@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from .. import db
@@ -14,15 +14,20 @@ from ..config import (
     update_provider_model,
     update_provider_params,
 )
+from ..pipeline.document_extract import ExtractionError, UnsupportedFileType, extract_text
 from ..pipeline.export_markdown import build_run_markdown
+from ..pipeline.followup import run_followup
 from ..pipeline.orchestrator import run_pipeline
 from ..schemas import (
     CreateRunRequest,
+    FollowupRequest,
     ResumeRunRequest,
     UpdateProviderEnabledRequest,
     UpdateProviderModelRequest,
     UpdateProviderParamsRequest,
 )
+
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
 
 router = APIRouter(prefix="/api")
 
@@ -127,6 +132,20 @@ def set_provider_params(provider_key: str, req: UpdateProviderParamsRequest):
     return {"key": provider_key, "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p")}
 
 
+@router.post("/documents/extract")
+async def extract_document(file: UploadFile = File(...)):
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(400, f"file too large — max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB")
+    try:
+        text, truncated = extract_text(file.filename or "upload", content)
+    except UnsupportedFileType as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ExtractionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"filename": file.filename, "text": text, "truncated": truncated, "char_count": len(text)}
+
+
 @router.post("/runs")
 async def create_run(req: CreateRunRequest):
     cfg = get_config()
@@ -167,6 +186,7 @@ def _serialize_run(run_id: str) -> dict:
     citations_ = db.get_citation_verifications(run_id)
     cost = db.run_cost_summary(run_id)
     cost_by_provider = db.run_cost_by_provider(run_id)
+    followup_messages = db.get_followup_messages(run_id)
 
     return {
         "run": run,
@@ -176,6 +196,7 @@ def _serialize_run(run_id: str) -> dict:
         "citation_verifications": citations_,
         "cost_summary": cost,
         "cost_by_provider": cost_by_provider,
+        "followup_messages": followup_messages,
     }
 
 
@@ -193,6 +214,15 @@ async def resume_run(run_id: str, req: ResumeRunRequest):
         raise HTTPException(400, f"invalid force_stage: {req.force_stage}")
     _launch(run_id, force_stage=req.force_stage)
     return {"run_id": run_id, "status": "resumed"}
+
+
+@router.post("/runs/{run_id}/followup")
+async def post_followup(run_id: str, req: FollowupRequest):
+    try:
+        result = await run_followup(run_id, req.message, get_config())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return result
 
 
 @router.post("/runs/{run_id}/cancel")

@@ -24,8 +24,9 @@ docs as of 2026-07-14 (see [`MODELS_STATUS.md`](MODELS_STATUS.md)) — one,
 `gemini-2.5-pro`, was found deprecated and is blocked from selection. Every
 vendor carries a 5th backup model beyond the 4 the UI guarantees, so a
 single future deprecation (like that one) doesn't drop anyone below 4
-working choices. 31 backend tests cover the pipeline logic, citation
-verification, sampling overrides, and the config-editing endpoints.
+working choices. 52 backend tests cover the pipeline logic, citation
+verification, sampling overrides, document extraction, the follow-up chat,
+and the config-editing endpoints.
 
 ## Pipeline
 
@@ -64,6 +65,34 @@ verification, sampling overrides, and the config-editing endpoints.
    private/loopback/link-local/reserved addresses are refused outright
    (basic SSRF guard, since the URLs originate from model output). The UI
    shows ✅ verified vs ❌ removed for every citation.
+
+### Attaching a document
+
+The "Attach a document (optional)" file picker in the sidebar accepts
+`.txt`, `.md`, `.csv`, `.json`, `.yaml`, `.log`, `.pdf`, and `.docx` files.
+Choosing one immediately uploads it to `POST /api/documents/extract`, which
+pulls out plain text (`pypdf` for PDFs, `python-docx` for Word docs, a plain
+UTF-8/latin-1 decode for everything else — deliberately text-only, no
+vision/multimodal support) and shows the extracted character count in the
+sidebar. The extracted text (capped at 60k characters) is prepended to your
+prompt, wrapped and labeled, right before the run is created — all six
+providers see it as part of the same Stage 1 prompt, so it costs the same
+one round of six calls as any other run rather than a separate ingestion
+step. The attachment is cleared after a run starts so it isn't accidentally
+resent on the next one.
+
+### Going deeper — follow-up dialog with the synthesis model
+
+Once a run reaches a synthesized answer, a **Go deeper** panel appears
+under it. Anything you type there goes only to the model that produced the
+synthesis (not all six providers) via `POST /api/runs/{id}/followup`, with
+the original prompt and synthesized answer as context — not the full
+six-way Stage 1 dump, so follow-up turns stay cheap. Each reply is checked
+with the same live citation verification as the initial synthesis (a
+follow-up's claimed URL is never trusted any more than Stage 3's), always
+uses the provider's own default sampling regardless of any Stage 1
+temperature/top-p override, and is included in both the run's cost
+breakdown (a `followup` line/bucket) and the Markdown export.
 
 The whole pipeline is resumable: each stage checks what's already in SQLite
 before spending money re-calling a provider, so `POST /api/runs/{id}/resume`
@@ -330,12 +359,14 @@ list in `providers.yaml` with verified current pricing.
 ## Cost control
 
 - `GET /api/runs/{id}` returns a `cost_summary` broken down by stage
-  (`stage1_usd`/`stage2_usd`/`stage3_usd`/`total_usd`) and a
+  (`stage1_usd`/`stage2_usd`/`stage3_usd`/`followup_usd`/`total_usd`) and a
   `cost_by_provider` breakdown of the same, per provider — how much each
   model's own stage-1 answer cost, how much it cost when acting as a
-  stage-2 fact-checker, and how much stage 3 cost if it was the synthesis
-  provider, each with input/output token counts. The UI shows this inline
-  on every provider's status card.
+  stage-2 fact-checker, how much stage 3 cost if it was the synthesis
+  provider, and how much any follow-up dialog cost (attributed to the
+  synthesis provider), each with input/output token counts. The UI shows
+  this inline on every provider's status card and in the run's cost summary
+  line.
 - Set `skip_stage2: true` on a run (or check "Skip fact-check stage" in the
   UI) to drop the most expensive stage for quick/cheap iterations.
 

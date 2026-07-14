@@ -25,3 +25,7 @@ class UpdateProviderEnabledRequest(BaseModel):
 class UpdateProviderParamsRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     top_p: float | None = Field(default=None, gt=0, le=1)
+
+
+class FollowupRequest(BaseModel):
+    message: str = Field(min_length=1)

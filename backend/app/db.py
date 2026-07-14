@@ -93,6 +93,25 @@ CREATE TABLE IF NOT EXISTS citation_verifications (
     checked_at REAL NOT NULL,
     UNIQUE(run_id, url)
 );
+
+-- Post-synthesis "go deeper" chat with just the synthesis model. turn_index
+-- increments per run (0, 1, 2...) with a user row and its assistant reply
+-- sharing consecutive indices, so ordering is stable without relying on
+-- created_at (two calls in the same millisecond would otherwise tie).
+CREATE TABLE IF NOT EXISTS followup_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    turn_index INTEGER NOT NULL,
+    role TEXT NOT NULL,                -- user | assistant
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ok', -- ok | error | timeout (user rows are always 'ok')
+    error TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost_usd REAL,
+    latency_ms REAL,
+    created_at REAL NOT NULL
+);
 """
 
 
@@ -171,7 +190,8 @@ def delete_run(run_id: str) -> bool:
         existed = conn.execute("SELECT 1 FROM runs WHERE run_id = ?", (run_id,)).fetchone() is not None
         if not existed:
             return False
-        for table in ("stage1_responses", "fact_check_results", "synthesis_results", "citation_verifications", "runs"):
+        for table in ("stage1_responses", "fact_check_results", "synthesis_results",
+                       "citation_verifications", "followup_messages", "runs"):
             conn.execute(f"DELETE FROM {table} WHERE run_id = ?", (run_id,))
         return True
 
@@ -301,6 +321,39 @@ def get_citation_verifications(run_id: str) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+def add_followup_message(run_id: str, turn_index: int, role: str, content: str, status: str = "ok",
+                          error: str | None = None, input_tokens: int | None = None,
+                          output_tokens: int | None = None, cost_usd: float | None = None,
+                          latency_ms: float | None = None) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO followup_messages
+                (run_id, turn_index, role, content, status, error, input_tokens, output_tokens, cost_usd,
+                 latency_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (run_id, turn_index, role, content, status, error, input_tokens, output_tokens, cost_usd,
+             latency_ms, time.time()),
+        )
+
+
+def get_followup_messages(run_id: str) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM followup_messages WHERE run_id = ? ORDER BY turn_index, id", (run_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def next_followup_turn_index(run_id: str) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(turn_index), -1) AS m FROM followup_messages WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        return row["m"] + 1
+
+
 def run_cost_summary(run_id: str) -> dict[str, float]:
     with get_conn() as conn:
         s1 = conn.execute(
@@ -312,7 +365,13 @@ def run_cost_summary(run_id: str) -> dict[str, float]:
         s3 = conn.execute(
             "SELECT COALESCE(SUM(cost_usd),0) AS c FROM synthesis_results WHERE run_id=?", (run_id,)
         ).fetchone()["c"]
-        return {"stage1_usd": s1, "stage2_usd": s2, "stage3_usd": s3, "total_usd": s1 + s2 + s3}
+        fu = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd),0) AS c FROM followup_messages WHERE run_id=?", (run_id,)
+        ).fetchone()["c"]
+        return {
+            "stage1_usd": s1, "stage2_usd": s2, "stage3_usd": s3, "followup_usd": fu,
+            "total_usd": s1 + s2 + s3 + fu,
+        }
 
 
 def _empty_stage_totals() -> dict[str, float]:
@@ -337,12 +396,18 @@ def run_cost_by_provider(run_id: str) -> dict[str, dict[str, dict[str, float]]]:
         stage3_rows = conn.execute(
             "SELECT provider, input_tokens, output_tokens, cost_usd FROM synthesis_results WHERE run_id=?", (run_id,)
         ).fetchall()
+        followup_rows = conn.execute(
+            "SELECT input_tokens, output_tokens, cost_usd FROM followup_messages WHERE run_id=? AND role='assistant'",
+            (run_id,),
+        ).fetchall()
+        run_row = conn.execute("SELECT synthesis_provider FROM runs WHERE run_id=?", (run_id,)).fetchone()
 
     breakdown: dict[str, dict[str, dict[str, float]]] = {}
 
     def _stage(provider: str, stage: str) -> dict[str, float]:
         entry = breakdown.setdefault(provider, {
-            "stage1": _empty_stage_totals(), "stage2": _empty_stage_totals(), "stage3": _empty_stage_totals(),
+            "stage1": _empty_stage_totals(), "stage2": _empty_stage_totals(),
+            "stage3": _empty_stage_totals(), "followup": _empty_stage_totals(),
         })
         return entry[stage]
 
@@ -357,6 +422,10 @@ def run_cost_by_provider(run_id: str) -> dict[str, dict[str, dict[str, float]]]:
         _add(_stage(r["checker_provider"], "stage2"), r)
     for r in stage3_rows:
         _add(_stage(r["provider"], "stage3"), r)
+    synthesis_provider = run_row["synthesis_provider"] if run_row else None
+    if synthesis_provider and followup_rows:
+        for r in followup_rows:
+            _add(_stage(synthesis_provider, "followup"), r)
 
     for stages in breakdown.values():
         stages["total"] = {

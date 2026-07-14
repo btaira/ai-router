@@ -5,17 +5,18 @@ from .base import BaseAdapter
 
 
 class AnthropicAdapter(BaseAdapter):
-    def build_request(self, prompt: str) -> tuple[str, dict, dict]:
+    def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         cfg = self.cfg
         headers = {
             "x-api-key": cfg.api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
+        messages = [*(history or []), {"role": "user", "content": prompt}]
         body: dict = {
             "model": cfg.model,
             "max_tokens": cfg.max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         thinking = cfg.extra.get("thinking")
         if thinking:

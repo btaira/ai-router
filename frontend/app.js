@@ -4,6 +4,8 @@ const state = {
   activeProvider: null,
   providers: [],
   isRunning: false,
+  docText: null,
+  docFilename: null,
 };
 
 const TERMINAL_STATUSES = ["complete", "failed", "cancelled"];
@@ -243,6 +245,49 @@ async function deleteRun(runId) {
   await loadRunList();
 }
 
+async function uploadDocument() {
+  const input = el("doc-file");
+  const statusEl = el("doc-status");
+  const file = input.files[0];
+  state.docText = null;
+  state.docFilename = null;
+  if (!file) {
+    statusEl.classList.add("hidden");
+    return;
+  }
+
+  statusEl.classList.remove("hidden");
+  statusEl.textContent = `Extracting ${file.name}…`;
+  statusEl.className = "doc-status";
+
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const res = await fetch("/api/documents/extract", { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      statusEl.textContent = `error: ${err.detail || res.statusText}`;
+      statusEl.className = "doc-status error";
+      return;
+    }
+    const data = await res.json();
+    state.docText = data.text;
+    state.docFilename = data.filename;
+    statusEl.textContent = `${data.filename} attached (${data.char_count.toLocaleString()} chars)${data.truncated ? " — truncated" : ""}`;
+    statusEl.className = "doc-status ok";
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "doc-status error";
+  }
+}
+
+function clearDocument() {
+  state.docText = null;
+  state.docFilename = null;
+  el("doc-file").value = "";
+  el("doc-status").classList.add("hidden");
+}
+
 function escapeHtml(s) {
   const d = document.createElement("div");
   d.textContent = s ?? "";
@@ -257,8 +302,11 @@ async function submitRun(ev) {
     return;
   }
 
-  const prompt = el("prompt").value.trim();
+  let prompt = el("prompt").value.trim();
   if (!prompt) return;
+  if (state.docText) {
+    prompt = `Attached document (${state.docFilename}):\n"""\n${state.docText}\n"""\n\n${prompt}`;
+  }
 
   el("submit-btn").disabled = true;
   try {
@@ -281,6 +329,7 @@ async function submitRun(ev) {
     // Optimistically flip to "Stop" right away — poll()/render() will keep
     // it in sync with the run's actual status from here.
     setRunning(true);
+    clearDocument(); // it's baked into the prompt now — don't resend on the next run
     await loadRunList();
     viewRun(run_id);
   } finally {
@@ -347,7 +396,7 @@ const STATUS_LABELS = {
 };
 
 function render(data) {
-  const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary, cost_by_provider } = data;
+  const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary, cost_by_provider, followup_messages } = data;
 
   const statusBadge = el("status-badge");
   statusBadge.textContent = STATUS_LABELS[run.status] || run.status;
@@ -360,7 +409,8 @@ function render(data) {
 
   el("cost-summary").textContent =
     `stage1 $${cost_summary.stage1_usd.toFixed(4)} · stage2 $${cost_summary.stage2_usd.toFixed(4)} · ` +
-    `stage3 $${cost_summary.stage3_usd.toFixed(4)} · total $${cost_summary.total_usd.toFixed(4)}`;
+    `stage3 $${cost_summary.stage3_usd.toFixed(4)} · followup $${(cost_summary.followup_usd ?? 0).toFixed(4)} · ` +
+    `total $${cost_summary.total_usd.toFixed(4)}`;
 
   const terminal = TERMINAL_STATUSES.includes(run.status);
   setRunning(!terminal);
@@ -373,6 +423,7 @@ function render(data) {
 
   renderBubbles(stage1_responses, cost_by_provider || {});
   renderSynthesis(synthesis, citation_verifications);
+  renderFollowup(synthesis, followup_messages || []);
   renderFactChecks(fact_check_results);
   renderStage1(stage1_responses);
 }
@@ -533,6 +584,66 @@ function renderSynthesis(synthesis, citationVerifications) {
   }
 }
 
+function renderFollowup(synthesis, followupMessages) {
+  const section = el("followup-section");
+  if (!synthesis || synthesis.status !== "ok") {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+
+  const providerLabel = (state.providers.find((p) => p.key === synthesis.provider) || {}).display_name || synthesis.provider;
+
+  const thread = el("followup-thread");
+  thread.innerHTML = "";
+  for (const m of followupMessages) {
+    const div = document.createElement("div");
+    if (m.role === "user") {
+      div.className = "followup-msg followup-user";
+      div.innerHTML = `<div class="followup-msg-label">You</div><div class="followup-msg-text">${escapeHtml(m.content)}</div>`;
+    } else if (m.status === "ok") {
+      div.className = "followup-msg followup-assistant";
+      div.innerHTML = `<div class="followup-msg-label">${escapeHtml(providerLabel)}</div><div class="followup-msg-text">${escapeHtml(m.content)}</div>`;
+    } else {
+      div.className = "followup-msg followup-assistant";
+      div.innerHTML = `<div class="followup-msg-label">${escapeHtml(providerLabel)}</div><div class="followup-msg-text error-text">${escapeHtml(m.status)}: ${escapeHtml(m.error || "")}</div>`;
+    }
+    thread.appendChild(div);
+  }
+  thread.scrollTop = thread.scrollHeight;
+}
+
+async function submitFollowup(ev) {
+  ev.preventDefault();
+  if (!state.currentRunId) return;
+
+  const input = el("followup-input");
+  const message = input.value.trim();
+  if (!message) return;
+
+  const btn = el("followup-submit");
+  btn.disabled = true;
+  input.disabled = true;
+  try {
+    const res = await fetch(`/api/runs/${state.currentRunId}/followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      alert(`Follow-up failed: ${err.detail || res.statusText}`);
+      return;
+    }
+    input.value = "";
+    await poll();
+  } finally {
+    btn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
 function renderFactChecks(factChecks) {
   const container = el("factcheck-list");
   container.innerHTML = "";
@@ -629,5 +740,13 @@ async function resumeRun(runId) {
 }
 
 el("run-form").addEventListener("submit", submitRun);
+el("doc-file").addEventListener("change", uploadDocument);
+el("followup-form").addEventListener("submit", submitFollowup);
+el("followup-input").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && !ev.shiftKey) {
+    ev.preventDefault();
+    el("followup-form").requestSubmit();
+  }
+});
 loadConfig();
 loadRunList();
