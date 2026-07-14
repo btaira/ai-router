@@ -158,6 +158,14 @@ and the data volume are live-mounted, but everything else (`backend/app`,
 docker compose up --build -d
 ```
 
+On Windows, double-click **`rebuild-docker.bat`** in the repo root to do
+the same thing without a terminal — it checks Docker Desktop is running,
+rebuilds the image from scratch, force-recreates the container so you
+always get the latest code (not a cached container), and tells you when
+it's done. If the app was already open in your browser, hard-refresh
+(`Ctrl+Shift+R`) afterward — otherwise you'll keep seeing the old page from
+cache even though the container is running the new code.
+
 ### Option B — Run it directly
 
 <details open>
