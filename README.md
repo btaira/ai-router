@@ -109,15 +109,54 @@ cp .env.example .env
 The app loads `.env` automatically on startup (via `python-dotenv`) — no
 need to `source` it or export vars by hand.
 
-### Option A — Docker (any OS, recommended)
+### Option A — Docker Desktop (any OS, recommended)
 
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+and make sure it's running (its whale icon shows in your system tray/menu
+bar — `docker info` succeeding on the command line confirms it's up).
+
+**Build and run**, from the repo root:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
-Open http://localhost:8000.
+- `--build` builds the image from `backend/Dockerfile` the first time (or
+  rebuilds it if code changed since the last build).
+- `-d` runs it detached (in the background) so the container keeps running
+  after the command returns — recommended for normal use. Drop `-d` if you
+  want to watch logs stream in your terminal instead.
+
+Open **http://localhost:8000**.
+
+**Managing it from the Docker Desktop app** (instead of the CLI): open
+Docker Desktop → **Containers** tab → you'll see `ai-router-ai-router-1`
+(grouped under the `ai-router` project). From there you can:
+- Click the row to view live logs, inspect env vars, or open a shell inside
+  the container
+- Use the ⏹ / ▶ buttons to stop/start it without losing data (the SQLite DB
+  lives in a named volume, `ai-router_ai-router-data`, visible under the
+  **Volumes** tab — it survives container restarts and rebuilds)
+- Click the port link (`8000:8000`) to jump straight to the app in your
+  browser
+
+**Stopping it:**
+
+```bash
+docker compose down
+```
+
+(This removes the container but keeps the named volume — your run history
+and SQLite data are preserved for next time. Add `-v` only if you actually
+want to wipe that data too.)
+
+**After changing backend or frontend code**, rebuild the image — `backend/config`
+and the data volume are live-mounted, but everything else (`backend/app`,
+`frontend/`) is baked into the image at build time:
+
+```bash
+docker compose up --build -d
+```
 
 ### Option B — Run it directly
 
