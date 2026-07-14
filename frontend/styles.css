@@ -173,13 +173,30 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border: 1px solid var(--border);
   cursor: pointer;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 #run-list li:hover { border-color: var(--accent); }
 #run-list li.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+#run-list .run-info { flex: 1; min-width: 0; }
 #run-list .prompt-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #run-list .meta { color: var(--muted); font-size: 11px; }
+.run-delete-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0.5;
+}
+#run-list li:hover .run-delete-btn { opacity: 1; }
+.run-delete-btn:hover { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
 
-.content { flex: 1; padding: 24px 32px; max-width: 980px; overflow-x: hidden; }
+.content { flex: 1; min-width: 0; padding: 24px 32px; overflow-x: hidden; }
 
 .empty-state { color: var(--muted); margin-top: 40px; text-align: center; }
 .hero-banner {

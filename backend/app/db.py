@@ -159,6 +159,23 @@ def get_run(run_id: str) -> dict[str, Any] | None:
         return dict(row) if row else None
 
 
+def delete_run(run_id: str) -> bool:
+    """Delete a run and everything logged under it. There's no FOREIGN KEY
+    declared between the stage tables and `runs` (they're linked only by a
+    plain run_id column, not an actual constraint), so each table is
+    cleared explicitly rather than relying on cascading deletes.
+
+    Returns False if the run didn't exist (nothing to delete).
+    """
+    with get_conn() as conn:
+        existed = conn.execute("SELECT 1 FROM runs WHERE run_id = ?", (run_id,)).fetchone() is not None
+        if not existed:
+            return False
+        for table in ("stage1_responses", "fact_check_results", "synthesis_results", "citation_verifications", "runs"):
+            conn.execute(f"DELETE FROM {table} WHERE run_id = ?", (run_id,))
+        return True
+
+
 def list_runs(limit: int = 50) -> list[dict[str, Any]]:
     with get_conn() as conn:
         rows = conn.execute(

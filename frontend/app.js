@@ -205,10 +205,42 @@ async function loadRunList() {
   for (const run of runs) {
     const li = document.createElement("li");
     li.className = run.run_id === state.currentRunId ? "active" : "";
-    li.innerHTML = `<span class="prompt-preview">${escapeHtml(run.prompt)}</span><span class="meta">${run.status}</span>`;
+    li.innerHTML = `
+      <div class="run-info">
+        <span class="prompt-preview">${escapeHtml(run.prompt)}</span>
+        <span class="meta">${run.status}</span>
+      </div>
+      <button type="button" class="run-delete-btn" title="Delete this run" data-run-id="${escapeHtml(run.run_id)}">✕</button>
+    `;
     li.addEventListener("click", () => viewRun(run.run_id));
     list.appendChild(li);
   }
+  list.querySelectorAll(".run-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation(); // don't also trigger the parent <li>'s viewRun click
+      deleteRun(btn.dataset.runId);
+    });
+  });
+}
+
+async function deleteRun(runId) {
+  if (!confirm("Delete this run? This can't be undone.")) return;
+
+  const res = await fetch(`/api/runs/${runId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    alert(`Failed to delete run: ${err.detail || res.statusText}`);
+    return;
+  }
+
+  if (state.currentRunId === runId) {
+    // the run being viewed was just deleted — back out to the empty state
+    state.currentRunId = null;
+    if (state.pollTimer) clearTimeout(state.pollTimer);
+    el("run-view").classList.add("hidden");
+    el("empty-state").classList.remove("hidden");
+  }
+  await loadRunList();
 }
 
 function escapeHtml(s) {

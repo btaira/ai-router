@@ -299,6 +299,16 @@ live (no restart) and persisted to `providers.yaml`:
 - The prompt box has a visibly distinct border so it's unambiguous where to
   type, and "Fact-check mode" has an (ⓘ) info bubble — hover or focus it —
   explaining what each of the three modes actually does before you pick one.
+- The main content area fills the full browser width (no fixed max-width),
+  so the provider-status cards reflow into more columns and everything
+  reads more comfortably on a wide monitor instead of being stuck in a
+  narrow centered column.
+- Each entry in "Recent runs" has a ✕ button (`DELETE /api/runs/{id}`) to
+  permanently delete that run and everything logged under it. If it's
+  currently in progress, deleting it cancels the pipeline first so no
+  background provider calls keep running for a run that no longer exists.
+  If you delete the run you're currently viewing, the page returns to the
+  welcome screen.
 
 All of this is `PUT /api/config/providers/{key}/{model,enabled,params}`,
 each doing a targeted rewrite of just the relevant line(s) in

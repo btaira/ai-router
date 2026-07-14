@@ -207,6 +207,20 @@ def cancel_run(run_id: str):
     return {"run_id": run_id, "status": "cancelling"}
 
 
+@router.delete("/runs/{run_id}")
+def delete_run(run_id: str):
+    run = db.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, "run not found")
+    task = _run_tasks.get(run_id)
+    if task is not None and not task.done():
+        # avoid an orphaned background task burning through provider calls
+        # for a run that no longer exists to show the results of
+        task.cancel()
+    db.delete_run(run_id)
+    return {"run_id": run_id, "status": "deleted"}
+
+
 @router.get("/runs/{run_id}/export")
 def export_run(run_id: str):
     data = _serialize_run(run_id)
