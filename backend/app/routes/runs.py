@@ -10,6 +10,7 @@ from .. import db
 from ..config import (
     ModelUpdateError,
     get_config,
+    set_provider_api_key,
     update_provider_enabled,
     update_provider_model,
     update_provider_params,
@@ -22,6 +23,7 @@ from ..schemas import (
     CreateRunRequest,
     FollowupRequest,
     ResumeRunRequest,
+    UpdateProviderApiKeyRequest,
     UpdateProviderEnabledRequest,
     UpdateProviderModelRequest,
     UpdateProviderParamsRequest,
@@ -130,6 +132,24 @@ def set_provider_params(provider_key: str, req: UpdateProviderParamsRequest):
     cfg = get_config(refresh=True)
     p = cfg.providers[provider_key]
     return {"key": provider_key, "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p")}
+
+
+@router.put("/config/providers/{provider_key}/api-key")
+def set_provider_api_key_route(provider_key: str, req: UpdateProviderApiKeyRequest):
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    set_provider_api_key(provider_key, req.api_key.strip())
+    return {"key": provider_key, "has_api_key": True}
+
+
+@router.delete("/config/providers/{provider_key}/api-key")
+def clear_provider_api_key_route(provider_key: str):
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    set_provider_api_key(provider_key, None)
+    return {"key": provider_key, "has_api_key": bool(cfg.providers[provider_key].api_key)}
 
 
 @router.post("/documents/extract")

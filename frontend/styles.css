@@ -164,6 +164,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .model-save-status.ok { color: var(--ok); }
 .model-save-status.error { color: var(--bad); }
 
+.api-key-row { display: flex; gap: 6px; align-items: center; }
+.api-key-row .api-key-input { flex: 1; font-size: 12px; padding: 6px 8px; }
+.api-key-row button { padding: 6px 10px; font-size: 12px; border-color: var(--border); flex-shrink: 0; }
+.api-key-status { font-size: 11px; color: var(--muted); min-height: 14px; }
+.api-key-status.ok { color: var(--ok); }
+.api-key-status.error { color: var(--bad); }
+
 .doc-status { font-size: 12px; color: var(--muted); word-break: break-word; }
 .doc-status.ok { color: var(--ok); }
 .doc-status.error { color: var(--bad); }

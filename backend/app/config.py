@@ -9,8 +9,16 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import set_key as _dotenv_set_key
+from dotenv import unset_key as _dotenv_unset_key
 
 CONFIG_PATH = Path(os.environ.get("AI_ROUTER_CONFIG", Path(__file__).resolve().parent.parent / "config" / "providers.yaml"))
+# BYOK keys pasted into the UI land here rather than in the repo-root .env —
+# this file lives next to providers.yaml inside backend/config, which is
+# already bind-mounted into the Docker container both ways (host <->
+# container), so a key saved from a running container is visible on the
+# host and survives an image rebuild. It's git-ignored; never commit it.
+KEYS_PATH = Path(os.environ.get("AI_ROUTER_KEYS", CONFIG_PATH.parent / "keys.env"))
 
 
 @dataclass
@@ -264,3 +272,31 @@ def update_provider_params(provider_key: str, temperature: float | None, top_p: 
                             path: Path | None = None) -> None:
     set_provider_field(provider_key, "temperature", temperature, path=path)
     set_provider_field(provider_key, "top_p", top_p, path=path)
+
+
+def set_provider_api_key(provider_key: str, api_key: str | None, path: Path | None = None,
+                          keys_path: Path | None = None) -> None:
+    """Set (or clear) a provider's BYOK key: written to `keys_path` (default
+    KEYS_PATH) so it survives a restart, and applied to the current process
+    immediately so the change takes effect without one —
+    `ProviderConfig.api_key` always reads live from `os.environ`.
+
+    Clearing (api_key=None) removes the override from `keys_path` and the
+    current process, falling back to whatever the deployment's own .env /
+    shell environment provides for that var, if anything.
+    """
+    cfg = load_config(path or CONFIG_PATH)
+    if provider_key not in cfg.providers:
+        raise ValueError(f"unknown provider: {provider_key}")
+    env_var = cfg.providers[provider_key].api_key_env
+    dest = keys_path or KEYS_PATH
+
+    if api_key:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.touch(exist_ok=True)
+        _dotenv_set_key(str(dest), env_var, api_key, quote_mode="always")
+        os.environ[env_var] = api_key
+    else:
+        if dest.exists():
+            _dotenv_unset_key(str(dest), env_var)
+        os.environ.pop(env_var, None)

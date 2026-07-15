@@ -141,7 +141,7 @@ providers:
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
   deepseek:
-    enabled: true
+    enabled: false
     display_name: "DeepSeek"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
@@ -194,7 +194,7 @@ providers:
         pricing: {input_per_million: 0.15, output_per_million: 0.90}
 
   moonshot:
-    enabled: true
+    enabled: false
     display_name: "Moonshot (Kimi)"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"

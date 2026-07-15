@@ -27,5 +27,9 @@ class UpdateProviderParamsRequest(BaseModel):
     top_p: float | None = Field(default=None, gt=0, le=1)
 
 
+class UpdateProviderApiKeyRequest(BaseModel):
+    api_key: str = Field(min_length=1)
+
+
 class FollowupRequest(BaseModel):
     message: str = Field(min_length=1)

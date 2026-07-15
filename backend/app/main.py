@@ -15,6 +15,14 @@ from fastapi.staticfiles import StaticFiles
 # config should be the single source of truth for its own provider keys.
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env", override=True)
 
+from .config import KEYS_PATH  # noqa: E402
+
+# Then layer in any BYOK keys pasted into the Settings UI (backend/config/keys.env,
+# git-ignored) — these take priority over the deploy-time .env above, since
+# pasting a key in the UI is a deliberate override of whatever the operator
+# configured at deploy time.
+load_dotenv(dotenv_path=KEYS_PATH, override=True)
+
 from . import db  # noqa: E402
 from .routes.runs import router as runs_router  # noqa: E402
 

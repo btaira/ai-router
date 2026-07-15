@@ -106,6 +106,16 @@ function renderModelSettings() {
         <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
         <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
       </div>
+
+      <label class="field-label">API key
+        <span class="hint api-key-hint" data-provider="${escapeHtml(p.key)}">${p.has_api_key ? "— currently set" : "— not set"}</span>
+      </label>
+      <div class="api-key-row">
+        <input type="password" class="api-key-input" data-provider="${escapeHtml(p.key)}" placeholder="paste key to set/replace…" autocomplete="off" />
+        <button type="button" class="api-key-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save key</button>
+        <button type="button" class="api-key-clear-btn ghost-btn" data-provider="${escapeHtml(p.key)}" ${p.has_api_key ? "" : "disabled"}>Clear</button>
+      </div>
+      <span class="api-key-status" data-provider="${escapeHtml(p.key)}"></span>
     `;
     container.appendChild(row);
   }
@@ -122,6 +132,12 @@ function renderModelSettings() {
   });
   container.querySelectorAll(".model-save-btn").forEach((btn) => {
     btn.addEventListener("click", () => saveProviderSettings(btn.dataset.provider));
+  });
+  container.querySelectorAll(".api-key-save-btn").forEach((btn) => {
+    btn.addEventListener("click", () => saveApiKey(btn.dataset.provider));
+  });
+  container.querySelectorAll(".api-key-clear-btn").forEach((btn) => {
+    btn.addEventListener("click", () => clearApiKey(btn.dataset.provider));
   });
 }
 
@@ -196,6 +212,82 @@ async function saveProviderSettings(providerKey) {
   } catch (e) {
     statusEl.textContent = `error: ${e}`;
     statusEl.className = "model-save-status error";
+  }
+}
+
+// Updates the "currently set / not set" hint and the Clear button's
+// disabled state for one provider's API key row in place, instead of a
+// full renderModelSettings() re-render — the same reasoning as
+// refreshSynthesisDropdown(): a full re-render right after an action would
+// wipe out this row's own "key saved"/error status message a moment after
+// it appears, and (worse) any other row's in-flight status too.
+function updateApiKeyHint(providerKey, hasKey) {
+  const hint = document.querySelector(`.api-key-hint[data-provider="${providerKey}"]`);
+  if (hint) hint.textContent = hasKey ? "— currently set" : "— not set";
+  const clearBtn = document.querySelector(`.api-key-clear-btn[data-provider="${providerKey}"]`);
+  if (clearBtn) clearBtn.disabled = !hasKey;
+}
+
+async function saveApiKey(providerKey) {
+  const input = document.querySelector(`.api-key-input[data-provider="${providerKey}"]`);
+  const statusEl = document.querySelector(`.api-key-status[data-provider="${providerKey}"]`);
+  const key = input.value.trim();
+  if (!key) {
+    statusEl.textContent = "paste a key first";
+    statusEl.className = "api-key-status error";
+    return;
+  }
+
+  statusEl.textContent = "saving…";
+  statusEl.className = "api-key-status";
+  try {
+    const res = await fetch(`/api/config/providers/${providerKey}/api-key`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: key }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      statusEl.textContent = `error: ${err.detail || res.statusText}`;
+      statusEl.className = "api-key-status error";
+      return;
+    }
+    const data = await res.json();
+    input.value = ""; // never leave the plaintext key sitting in the DOM after it's saved
+    const p = state.providers.find((p) => p.key === providerKey);
+    if (p) p.has_api_key = data.has_api_key;
+    updateApiKeyHint(providerKey, data.has_api_key);
+    statusEl.textContent = "key saved — takes effect immediately";
+    statusEl.className = "api-key-status ok";
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "api-key-status error";
+  }
+}
+
+async function clearApiKey(providerKey) {
+  if (!confirm("Clear the saved API key for this provider? It'll fall back to the server's own environment variable, if any.")) return;
+
+  const statusEl = document.querySelector(`.api-key-status[data-provider="${providerKey}"]`);
+  statusEl.textContent = "clearing…";
+  statusEl.className = "api-key-status";
+  try {
+    const res = await fetch(`/api/config/providers/${providerKey}/api-key`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      statusEl.textContent = `error: ${err.detail || res.statusText}`;
+      statusEl.className = "api-key-status error";
+      return;
+    }
+    const data = await res.json();
+    const p = state.providers.find((p) => p.key === providerKey);
+    if (p) p.has_api_key = data.has_api_key;
+    updateApiKeyHint(providerKey, data.has_api_key);
+    statusEl.textContent = data.has_api_key ? "cleared — falling back to the server's default key" : "cleared";
+    statusEl.className = "api-key-status ok";
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "api-key-status error";
   }
 }
 

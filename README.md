@@ -24,9 +24,9 @@ docs as of 2026-07-14 (see [`MODELS_STATUS.md`](MODELS_STATUS.md)) — one,
 `gemini-2.5-pro`, was found deprecated and is blocked from selection. Every
 vendor carries a 5th backup model beyond the 4 the UI guarantees, so a
 single future deprecation (like that one) doesn't drop anyone below 4
-working choices. 52 backend tests cover the pipeline logic, citation
+working choices. 59 backend tests cover the pipeline logic, citation
 verification, sampling overrides, document extraction, the follow-up chat,
-and the config-editing endpoints.
+BYOK key storage, and the config-editing endpoints.
 
 ## Pipeline
 
@@ -308,6 +308,18 @@ live (no restart) and persisted to `providers.yaml`:
   stage 1, can't be picked as a stage-2 fact-checker, and is removed from
   the "Synthesis model" dropdown; the backend also rejects a run that names
   a disabled provider as the synthesis provider.
+- **API key.** Paste a key and hit "Save key" to set or replace that
+  provider's key without touching `.env` or restarting anything — it takes
+  effect on the very next request. Saved keys live in
+  `backend/config/keys.env` (git-ignored, created automatically the first
+  time you save one), which is layered on top of `.env` at startup and
+  overrides it, so a key pasted here always wins over whatever was baked in
+  at deploy time. "Clear" removes the override and falls back to `.env`
+  (if that provider has a value there) or "missing API key" otherwise. Note
+  this is a single shared key for the whole deployment (matching every
+  other setting on this page) — anyone who can reach this instance can
+  replace it, so only put a real deployment behind this if you're the only
+  one using it, or you trust everyone who can reach it.
 - **Temperature / top-p.** Optional per-provider sampling params, left
   blank by default so each model just uses its own native default (1.0 for
   most; shown as a hint next to each field, from
