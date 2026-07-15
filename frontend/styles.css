@@ -59,8 +59,64 @@ body {
 
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark { height: 38px; width: auto; flex-shrink: 0; display: block; }
-.sidebar h1 { margin: 0; font-size: 20px; }
+.sidebar h1 { margin: 0; font-size: 20px; flex: 1; }
 .tagline { margin: 0; color: var(--muted); font-size: 13px; }
+
+.icon-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(640px, 90vh);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.modal-header h2 { margin: 0; font-size: 16px; }
+.modal-body { padding: 16px 20px 20px; overflow-y: auto; }
+.settings-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.settings-intro code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+
+.api-key-settings-row { padding: 12px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.api-key-settings-row:first-child { border-top: none; padding-top: 0; }
+.api-key-settings-header { display: flex; align-items: baseline; gap: 6px; font-size: 14px; }
+.api-key-settings-header .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
 
 #run-form { display: flex; flex-direction: column; gap: 10px; }
 

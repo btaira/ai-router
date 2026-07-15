@@ -286,6 +286,27 @@ caching discounts, which can cut effective cost 60-90% on repeat context —
 so these are a conservative upper bound). Re-verify periodically; they
 change often.
 
+### Settings — BYOK API keys
+
+Click the ⚙ button next to the "AI Router" logo to open the Settings
+modal — one panel listing every provider with a masked key input, "Save
+key", and "Clear". This is deliberately separate from "Model settings"
+below: it's a deployment-level credential, not a per-run tuning knob.
+
+Paste a key and hit "Save key" to write it straight into the real `.env`
+file and apply it to the running process immediately — no shell access, no
+restart needed, no separate override file to know about. "Clear" removes
+that provider's line from `.env` entirely (there's nothing left to fall
+back to once it's gone — a cleared provider goes back to reporting "missing
+API key" until a key is set again). Under Docker, `docker-compose.yml`
+bind-mounts `.env` into the container specifically so this write lands on
+the host file, not just inside the disposable container — it survives
+`docker compose up --build --force-recreate`. Note this is a single shared
+key for the whole deployment (matching every other setting in this app) —
+anyone who can reach this instance can replace it, so only put a real
+deployment behind this if you're the only one using it, or you trust
+everyone who can reach it.
+
 ### Model settings — choosing models, enabling/disabling vendors, sampling params
 
 Open "Model settings" in the sidebar for per-provider controls, all applied
@@ -308,20 +329,6 @@ live (no restart) and persisted to `providers.yaml`:
   stage 1, can't be picked as a stage-2 fact-checker, and is removed from
   the "Synthesis model" dropdown; the backend also rejects a run that names
   a disabled provider as the synthesis provider.
-- **API key.** Paste a key and hit "Save key" to write it straight into
-  the real `.env` file and apply it to the running process immediately —
-  no shell access, no restart needed, no separate override file to know
-  about. "Clear" removes that provider's line from `.env` entirely (there's
-  nothing left to fall back to once it's gone — a cleared provider goes
-  back to reporting "missing API key" until a key is set again). Under
-  Docker, `docker-compose.yml` bind-mounts `.env` into the container
-  specifically so this write lands on the host file, not just inside the
-  disposable container — it survives `docker compose up --build
-  --force-recreate`. Note this is a single shared key for the whole
-  deployment (matching every other setting on this page) — anyone who can
-  reach this instance can replace it, so only put a real deployment behind
-  this if you're the only one using it, or you trust everyone who can
-  reach it.
 - **Temperature / top-p.** Optional per-provider sampling params, left
   blank by default so each model just uses its own native default (1.0 for
   most; shown as a hint next to each field, from

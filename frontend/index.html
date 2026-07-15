@@ -13,6 +13,7 @@
     <div class="brand">
       <img class="brand-mark" src="logo.png" alt="AI Router logo" />
       <h1>AI Router</h1>
+      <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-label="Open settings">⚙</button>
     </div>
     <p class="tagline">One prompt, multiple AI models, one fact-checked answer.</p>
 
@@ -131,6 +132,26 @@
     </div>
   </main>
 </div>
+
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <div class="modal-header">
+      <h2 id="settings-modal-title">Settings</h2>
+      <button type="button" id="settings-close-btn" class="icon-btn" aria-label="Close settings">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="settings-intro">
+        Bring your own API keys. A key pasted here is saved straight into
+        this deployment's <code>.env</code> file and takes effect
+        immediately — no restart needed. This is one shared key for the
+        whole deployment (like every other setting in this app), not a
+        per-visitor key.
+      </p>
+      <div id="api-key-settings-list"></div>
+    </div>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

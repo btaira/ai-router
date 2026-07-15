@@ -106,16 +106,6 @@ function renderModelSettings() {
         <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
         <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
       </div>
-
-      <label class="field-label">API key
-        <span class="hint api-key-hint" data-provider="${escapeHtml(p.key)}">${p.has_api_key ? "— currently set" : "— not set"}</span>
-      </label>
-      <div class="api-key-row">
-        <input type="password" class="api-key-input" data-provider="${escapeHtml(p.key)}" placeholder="paste key to set/replace…" autocomplete="off" />
-        <button type="button" class="api-key-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save key</button>
-        <button type="button" class="api-key-clear-btn ghost-btn" data-provider="${escapeHtml(p.key)}" ${p.has_api_key ? "" : "disabled"}>Clear</button>
-      </div>
-      <span class="api-key-status" data-provider="${escapeHtml(p.key)}"></span>
     `;
     container.appendChild(row);
   }
@@ -133,12 +123,47 @@ function renderModelSettings() {
   container.querySelectorAll(".model-save-btn").forEach((btn) => {
     btn.addEventListener("click", () => saveProviderSettings(btn.dataset.provider));
   });
+}
+
+// Bring-your-own-key management — deliberately its own modal (opened via
+// the ⚙ button) rather than folded into "Model settings", since it's a
+// deployment-level credential rather than a per-run tuning knob.
+function renderApiKeySettings() {
+  const container = el("api-key-settings-list");
+  container.innerHTML = "";
+  for (const p of state.providers) {
+    const row = document.createElement("div");
+    row.className = "api-key-settings-row";
+    row.innerHTML = `
+      <div class="api-key-settings-header">
+        <strong>${escapeHtml(p.display_name)}</strong>
+        <span class="hint api-key-hint" data-provider="${escapeHtml(p.key)}">${p.has_api_key ? "— currently set" : "— not set"}</span>
+      </div>
+      <div class="api-key-row">
+        <input type="password" class="api-key-input" data-provider="${escapeHtml(p.key)}" placeholder="paste key to set/replace…" autocomplete="off" />
+        <button type="button" class="api-key-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save key</button>
+        <button type="button" class="api-key-clear-btn ghost-btn" data-provider="${escapeHtml(p.key)}" ${p.has_api_key ? "" : "disabled"}>Clear</button>
+      </div>
+      <span class="api-key-status" data-provider="${escapeHtml(p.key)}"></span>
+    `;
+    container.appendChild(row);
+  }
+
   container.querySelectorAll(".api-key-save-btn").forEach((btn) => {
     btn.addEventListener("click", () => saveApiKey(btn.dataset.provider));
   });
   container.querySelectorAll(".api-key-clear-btn").forEach((btn) => {
     btn.addEventListener("click", () => clearApiKey(btn.dataset.provider));
   });
+}
+
+function openSettingsModal() {
+  renderApiKeySettings();
+  el("settings-modal").classList.remove("hidden");
+}
+
+function closeSettingsModal() {
+  el("settings-modal").classList.add("hidden");
 }
 
 async function toggleProviderEnabled(providerKey, enabled) {
@@ -266,7 +291,7 @@ async function saveApiKey(providerKey) {
 }
 
 async function clearApiKey(providerKey) {
-  if (!confirm("Clear the saved API key for this provider? It'll fall back to the server's own environment variable, if any.")) return;
+  if (!confirm("Clear the saved API key for this provider? It'll stop working until a new key is set.")) return;
 
   const statusEl = document.querySelector(`.api-key-status[data-provider="${providerKey}"]`);
   statusEl.textContent = "clearing…";
@@ -283,7 +308,7 @@ async function clearApiKey(providerKey) {
     const p = state.providers.find((p) => p.key === providerKey);
     if (p) p.has_api_key = data.has_api_key;
     updateApiKeyHint(providerKey, data.has_api_key);
-    statusEl.textContent = data.has_api_key ? "cleared — falling back to the server's default key" : "cleared";
+    statusEl.textContent = "cleared";
     statusEl.className = "api-key-status ok";
   } catch (e) {
     statusEl.textContent = `error: ${e}`;
@@ -839,6 +864,14 @@ el("followup-input").addEventListener("keydown", (ev) => {
     ev.preventDefault();
     el("followup-form").requestSubmit();
   }
+});
+el("settings-btn").addEventListener("click", openSettingsModal);
+el("settings-close-btn").addEventListener("click", closeSettingsModal);
+el("settings-modal").addEventListener("click", (ev) => {
+  if (ev.target.id === "settings-modal") closeSettingsModal(); // click landed on the backdrop, not the dialog
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !el("settings-modal").classList.contains("hidden")) closeSettingsModal();
 });
 loadConfig();
 loadRunList();
