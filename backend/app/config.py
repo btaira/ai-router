@@ -9,16 +9,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from dotenv import set_key as _dotenv_set_key
-from dotenv import unset_key as _dotenv_unset_key
 
 CONFIG_PATH = Path(os.environ.get("AI_ROUTER_CONFIG", Path(__file__).resolve().parent.parent / "config" / "providers.yaml"))
-# BYOK keys pasted into the UI land here rather than in the repo-root .env —
-# this file lives next to providers.yaml inside backend/config, which is
-# already bind-mounted into the Docker container both ways (host <->
-# container), so a key saved from a running container is visible on the
-# host and survives an image rebuild. It's git-ignored; never commit it.
-KEYS_PATH = Path(os.environ.get("AI_ROUTER_KEYS", CONFIG_PATH.parent / "keys.env"))
+# The actual .env file (repo root) — BYOK keys pasted into the Settings UI
+# are written straight into this file, the same one `.env.example` gets
+# copied to and the same one main.py loads at startup. docker-compose.yml
+# bind-mounts it into the container so a write from inside a running
+# container lands on the host and survives an image rebuild.
+ENV_PATH = Path(os.environ.get("AI_ROUTER_ENV", Path(__file__).resolve().parent.parent.parent / ".env"))
 
 
 @dataclass
@@ -274,29 +272,71 @@ def update_provider_params(provider_key: str, temperature: float | None, top_p: 
     set_provider_field(provider_key, "top_p", top_p, path=path)
 
 
+_ENV_LINE_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=")
+
+
+def _env_quote(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _set_env_var(path: Path, key: str, value: str) -> None:
+    """Set one KEY="value" line in an env file, in place.
+
+    Deliberately not python-dotenv's set_key (temp file + os.replace): that
+    fails with "Device or resource busy" when `path` itself — not just its
+    parent directory — is a Docker bind mount (docker-compose.yml mounts
+    .env directly so BYOK writes reach the host), since you can't atomically
+    swap the inode at an active bind-mount point. A plain read/modify/write
+    to the same inode has no such restriction — same approach already used
+    for providers.yaml in set_provider_field, for the same reason.
+    """
+    lines = path.read_text().splitlines(keepends=True) if path.exists() else []
+    new_line = f"{key}={_env_quote(value)}\n"
+    for i, line in enumerate(lines):
+        m = _ENV_LINE_RE.match(line)
+        if m and m.group(1) == key:
+            lines[i] = new_line
+            break
+    else:
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append(new_line)
+    path.write_text("".join(lines))
+
+
+def _unset_env_var(path: Path, key: str) -> None:
+    if not path.exists():
+        return
+    lines = path.read_text().splitlines(keepends=True)
+    kept = [line for line in lines if not (_ENV_LINE_RE.match(line) and _ENV_LINE_RE.match(line).group(1) == key)]
+    path.write_text("".join(kept))
+
+
 def set_provider_api_key(provider_key: str, api_key: str | None, path: Path | None = None,
-                          keys_path: Path | None = None) -> None:
-    """Set (or clear) a provider's BYOK key: written to `keys_path` (default
-    KEYS_PATH) so it survives a restart, and applied to the current process
-    immediately so the change takes effect without one —
+                          env_path: Path | None = None) -> None:
+    """Set (or clear) a provider's API key directly in the .env file
+    (`env_path`, default ENV_PATH) so it survives a restart, and apply it to
+    the current process immediately so the change takes effect without one —
     `ProviderConfig.api_key` always reads live from `os.environ`.
 
-    Clearing (api_key=None) removes the override from `keys_path` and the
-    current process, falling back to whatever the deployment's own .env /
-    shell environment provides for that var, if anything.
+    Clearing (api_key=None) removes the line from .env and the current
+    process entirely — there's no separate fallback layer once .env is the
+    single source of truth, so this really does clear it, not revert it to
+    some other default.
     """
     cfg = load_config(path or CONFIG_PATH)
     if provider_key not in cfg.providers:
         raise ValueError(f"unknown provider: {provider_key}")
     env_var = cfg.providers[provider_key].api_key_env
-    dest = keys_path or KEYS_PATH
+    dest = env_path or ENV_PATH
 
     if api_key:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.touch(exist_ok=True)
-        _dotenv_set_key(str(dest), env_var, api_key, quote_mode="always")
+        if not dest.exists():
+            dest.touch()
+        _set_env_var(dest, env_var, api_key)
         os.environ[env_var] = api_key
     else:
-        if dest.exists():
-            _dotenv_unset_key(str(dest), env_var)
+        _unset_env_var(dest, env_var)
         os.environ.pop(env_var, None)

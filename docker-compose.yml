@@ -10,6 +10,12 @@ services:
     volumes:
       - ai-router-data:/app/backend/data
       - ./backend/config:/app/backend/config
+      # Bind-mounted (not just env_file'd) so a key saved from the Settings
+      # UI writes straight through to the host's .env and survives a
+      # `--force-recreate`/rebuild, not just the current container's
+      # lifetime. Must already exist on the host — `cp .env.example .env`
+      # in Quick Start creates it before this ever runs.
+      - ./.env:/app/.env
     restart: unless-stopped
 
 volumes:

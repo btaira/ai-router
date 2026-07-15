@@ -6,22 +6,20 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-# Load ../.env (repo root) before anything reads provider API keys from the
+from .config import ENV_PATH  # noqa: E402
+
+# Load .env (repo root) before anything reads provider API keys from the
 # environment. Explicit path so this works regardless of the CWD uvicorn was
 # launched from (e.g. `backend/` vs repo root) — matters most on Windows,
 # where there's no `source .env` equivalent. override=True so a value set in
 # .env always wins over a stray same-named var already in the shell (e.g. a
 # local tool like LM Studio exporting its own OPENAI_API_KEY) — this app's
 # config should be the single source of truth for its own provider keys.
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env", override=True)
-
-from .config import KEYS_PATH  # noqa: E402
-
-# Then layer in any BYOK keys pasted into the Settings UI (backend/config/keys.env,
-# git-ignored) — these take priority over the deploy-time .env above, since
-# pasting a key in the UI is a deliberate override of whatever the operator
-# configured at deploy time.
-load_dotenv(dotenv_path=KEYS_PATH, override=True)
+# The Settings UI's BYOK "Save key" writes straight into this same file
+# (see config.set_provider_api_key) and updates the live process env
+# immediately, so a pasted key takes effect without a restart — this load
+# only matters for keys already present when the process starts.
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 from . import db  # noqa: E402
 from .routes.runs import router as runs_router  # noqa: E402
