@@ -583,6 +583,22 @@ function viewRun(runId) {
   loadRunList();
 }
 
+// Loads a past run's prompt (and the settings it was run with) back into
+// the sidebar form so it can be tweaked and submitted as a new run —
+// "further interaction" with a recent run beyond just re-reading its
+// results. Doesn't touch the current run being viewed; only the form.
+function reusePrompt(run) {
+  el("prompt").value = run.prompt;
+  el("skip-stage2").checked = !!run.skip_stage2;
+  if (run.stage2_mode) el("stage2-mode").value = run.stage2_mode;
+  const synthesisSelect = el("synthesis-provider");
+  if (run.synthesis_provider && [...synthesisSelect.options].some((o) => o.value === run.synthesis_provider)) {
+    synthesisSelect.value = run.synthesis_provider;
+  }
+  el("prompt").scrollIntoView({ behavior: "smooth", block: "center" });
+  el("prompt").focus();
+}
+
 async function poll() {
   if (!state.currentRunId) return;
   const res = await fetch(`/api/runs/${state.currentRunId}`);
@@ -610,6 +626,9 @@ const STATUS_LABELS = {
 
 function render(data) {
   const { run, stage1_responses, fact_check_results, synthesis, citation_verifications, cost_summary, cost_by_provider, followup_messages } = data;
+
+  el("run-prompt-text").textContent = run.prompt;
+  el("reuse-prompt-btn").onclick = () => reusePrompt(run);
 
   const statusBadge = el("status-badge");
   statusBadge.textContent = STATUS_LABELS[run.status] || run.status;

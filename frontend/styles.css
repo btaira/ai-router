@@ -288,6 +288,22 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .hidden { display: none !important; }
 
+.prompt-section { margin-bottom: 16px; }
+.prompt-section-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.prompt-section-header h2 { margin: 0; }
+.prompt-section-header .ghost-btn { padding: 5px 10px; font-size: 12px; flex-shrink: 0; }
+.run-prompt-text {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .status-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .badge {
   padding: 4px 10px;
