@@ -142,7 +142,7 @@ providers:
 
   deepseek:
     enabled: false
-    display_name: "DeepSeek"
+    display_name: "DeepSeek · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
     model: "deepseek/deepseek-v4-pro"
@@ -162,14 +162,33 @@ providers:
       - id: "deepseek/deepseek-r1"
         pricing: {input_per_million: 0.70, output_per_million: 2.50}
       - id: "deepseek/deepseek-v3.2"
-        pricing: {input_per_million: 0.2145, output_per_million: 0.3218}
+        pricing: {input_per_million: 0.269, output_per_million: 0.40}
       - id: "deepseek/deepseek-r1-0528"
         # Newer point release of R1 — cheaper than the base r1 entry above.
         pricing: {input_per_million: 0.50, output_per_million: 2.15}
+      # --- Top OpenRouter models (not vendor-specific) — see the shared
+      # note under "minimax:" below for what this block is and how it was
+      # picked. ---
+      - id: "tencent/hy3:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5"
+        pricing: {input_per_million: 0.14, output_per_million: 0.28}
+      - id: "z-ai/glm-5.2"
+        pricing: {input_per_million: 0.959, output_per_million: 3.014}
+      - id: "z-ai/glm-4.7"
+        pricing: {input_per_million: 0.40, output_per_million: 1.75}
+      - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "qwen/qwen3-32b"
+        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "x-ai/grok-4.5"
+        pricing: {input_per_million: 2.00, output_per_million: 6.00}
+      - id: "meta-llama/llama-3.3-70b-instruct"
+        pricing: {input_per_million: 0.13, output_per_million: 0.40}
 
   minimax:
     enabled: true
-    display_name: "MiniMax"
+    display_name: "MiniMax · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
     model: "minimax/minimax-m3"
@@ -192,10 +211,38 @@ providers:
         pricing: {input_per_million: 0.40, output_per_million: 2.20}
       - id: "minimax/minimax-m2.5"
         pricing: {input_per_million: 0.15, output_per_million: 0.90}
+      # --- Top OpenRouter models (not vendor-specific). DeepSeek, MiniMax,
+      # and Moonshot all route through the same OPENROUTER_API_KEY (see the
+      # note at the top of this file), so — unlike Anthropic/OpenAI/Google,
+      # which each only offer their own vendor's models — these three slots
+      # can each be pointed at *any* OpenRouter-hosted model, not just one
+      # from their namesake vendor. This shared block is OpenRouter's
+      # current top-ranked/most-used models (per openrouter.ai/rankings,
+      # checked 2026-07-20) that aren't already natively available via the
+      # Anthropic/OpenAI/Google slots above (Claude/GPT/Gemini entries on
+      # that ranking are skipped here — pick those from their own native
+      # slot instead, it supports more features). Pricing verified the same
+      # day via OpenRouter's public /api/v1/models endpoint. ---
+      - id: "tencent/hy3:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5"
+        pricing: {input_per_million: 0.14, output_per_million: 0.28}
+      - id: "z-ai/glm-5.2"
+        pricing: {input_per_million: 0.959, output_per_million: 3.014}
+      - id: "z-ai/glm-4.7"
+        pricing: {input_per_million: 0.40, output_per_million: 1.75}
+      - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "qwen/qwen3-32b"
+        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "x-ai/grok-4.5"
+        pricing: {input_per_million: 2.00, output_per_million: 6.00}
+      - id: "meta-llama/llama-3.3-70b-instruct"
+        pricing: {input_per_million: 0.13, output_per_million: 0.40}
 
   moonshot:
-    enabled: false
-    display_name: "Moonshot (Kimi)"
+    enabled: true
+    display_name: "Moonshot (Kimi) · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
     model: "moonshotai/kimi-k2.6"
@@ -218,6 +265,32 @@ providers:
         pricing: {input_per_million: 0.57, output_per_million: 2.30}
       - id: "moonshotai/kimi-k2-0905"
         pricing: {input_per_million: 0.60, output_per_million: 2.50}
+      - id: "moonshotai/kimi-k3"
+        # Released since our last catalog refresh — MODELS_STATUS.md had it
+        # listed as "rumored, not released"; it's out now. Notably pricier
+        # than the rest of this lineup; not made the default, but ranked #3
+        # on OpenRouter's Artificial Analysis Intelligence Index as of
+        # 2026-07-20, so worth having available.
+        pricing: {input_per_million: 3.00, output_per_million: 15.00}
+      # --- Top OpenRouter models (not vendor-specific) — see the shared
+      # note under "minimax:" above for what this block is and how it was
+      # picked. ---
+      - id: "tencent/hy3:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5"
+        pricing: {input_per_million: 0.14, output_per_million: 0.28}
+      - id: "z-ai/glm-5.2"
+        pricing: {input_per_million: 0.959, output_per_million: 3.014}
+      - id: "z-ai/glm-4.7"
+        pricing: {input_per_million: 0.40, output_per_million: 1.75}
+      - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "qwen/qwen3-32b"
+        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "x-ai/grok-4.5"
+        pricing: {input_per_million: 2.00, output_per_million: 6.00}
+      - id: "meta-llama/llama-3.3-70b-instruct"
+        pricing: {input_per_million: 0.13, output_per_million: 0.40}
 
 pipeline:
   stage1:

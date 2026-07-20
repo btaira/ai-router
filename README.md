@@ -286,6 +286,18 @@ caching discounts, which can cut effective cost 60-90% on repeat context —
 so these are a conservative upper bound). Re-verify periodically; they
 change often.
 
+Unlike Anthropic/OpenAI/Google (each locked to their own vendor's models),
+these three slots can each be pointed at **any** OpenRouter-hosted model,
+not just one from their namesake vendor — their `models:` catalogs carry
+their original vendor-specific lineup plus a shared block of OpenRouter's
+current top-ranked/most-used models (tencent/hy3, xiaomi/mimo-v2.5,
+z-ai/glm-5.2, z-ai/glm-4.7, nvidia/nemotron-3-ultra, qwen/qwen3-32b,
+x-ai/grok-4.5, meta-llama/llama-3.3-70b-instruct — see
+[`MODELS_STATUS.md`](MODELS_STATUS.md) for how these were picked and
+verified). So "MiniMax" in the sidebar is really "OpenRouter slot #2,
+currently pointed at MiniMax" — pick whichever underlying model you want
+from its dropdown in Model settings.
+
 ### Settings — BYOK API keys
 
 Click the ⚙ button next to the "AI Router" logo to open the Settings

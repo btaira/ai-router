@@ -8,6 +8,8 @@ re-derive it from scratch.
 
 **Last verified:** 2026-07-14, via 8 parallel research passes (6 one per
 vendor, plus 2 follow-up passes for OpenAI and Google specifically).
+**DeepSeek/MiniMax/Moonshot catalogs expanded 2026-07-20** — see
+"OpenRouter: any-vendor picks" below.
 
 ## Policy: always keep 4+ working models per vendor
 
@@ -18,11 +20,45 @@ doesn't drop a vendor below 4 working choices; there's already a buffer
 entry to fall back on. When you next refresh this file, if any vendor drops
 below 5 *working* entries (i.e. a second one in the same vendor goes
 deprecated), research and add a replacement immediately rather than waiting
-for the next scheduled audit.
+for the next scheduled audit. This is the floor, not the ceiling — DeepSeek,
+MiniMax, and Moonshot each carry well more than 5 now (see below), since
+they can pick from any OpenRouter-hosted model, not just their own vendor's.
+
+## OpenRouter: any-vendor picks (2026-07-20)
+
+DeepSeek, MiniMax, and Moonshot all route through the same
+`OPENROUTER_API_KEY` (see the note at the top of `providers.yaml`), so
+unlike Anthropic/OpenAI/Google — each locked to their own vendor's models —
+these three can each be pointed at *any* OpenRouter-hosted model. Their
+`models:` catalogs now carry their original vendor-specific lineup **plus**
+a shared block of OpenRouter's current top-ranked/most-used models (source:
+[openrouter.ai/rankings](https://openrouter.ai/rankings#top-models)),
+excluding anything already natively available via the Anthropic/OpenAI/
+Google slots (pick those from their own native slot — better feature
+support). Pricing verified the same day via OpenRouter's public
+`/api/v1/models` endpoint:
+
+| Model | Pricing (in/out per M) | Why it's here |
+|---|---|---|
+| `tencent/hy3:free` | $0 / $0 | #1 by weekly token volume across all of OpenRouter. |
+| `xiaomi/mimo-v2.5` | $0.14 / $0.28 | #2 by weekly token volume. |
+| `z-ai/glm-5.2` | $0.959 / $3.014 | #5 by weekly token volume; also a top pick across several per-task leaderboards (Security Audit, etc). |
+| `z-ai/glm-4.7` | $0.40 / $1.75 | Top "fastest models" entry (523 tok/s on Cerebras). |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` | $0 / $0 | #6 by weekly token volume. |
+| `qwen/qwen3-32b` | $0.08 / $0.28 | Qwen is a top-5 vendor by OpenRouter market share; this is its fastest-ranked entry. |
+| `x-ai/grok-4.5` | $2.00 / $6.00 | Top-10 on the Artificial Analysis Intelligence Index benchmark. |
+| `meta-llama/llama-3.3-70b-instruct` | $0.13 / $0.40 | Widely-used open-weight baseline, also a top "fastest models" entry. |
+
+Also added `moonshotai/kimi-k3` ($3.00 / $15.00) directly to Moonshot's own
+lineup — it was listed as "rumored, not released" the last time this file
+was verified (2026-07-14); it's out now and ranks #3 on the Intelligence
+Index. Notably pricier than the rest of Moonshot's lineup, so it was added
+as an available pick, not made the default.
 
 ## Summary
 
-28 of 30 catalog entries (5 per vendor × 6 vendors) are confirmed working.
+28 of 30 *originally-curated* catalog entries (5 per vendor × 6 vendors,
+before the OpenRouter any-vendor expansion above) are confirmed working.
 Two are deprecated, both Google, both already superseded by working entries
 already in the catalog:
 
@@ -81,7 +117,7 @@ Sources: ai.google.dev/gemini-api/docs/models, .../pricing, .../deprecations, ..
 | `deepseek/deepseek-v4-pro` | working | $0.435 / $0.87 | Flagship, released 2026-04-24. 1.6T/49B active MoE, 1M context. |
 | `deepseek/deepseek-v4-flash` | working | $0.09 / $0.18 | Released alongside V4 Pro; efficiency-tuned MoE. |
 | `deepseek/deepseek-r1` | working | $0.70 / $2.50 | Original R1 (2025-01-20), still live. |
-| `deepseek/deepseek-v3.2` | working | $0.2145 / $0.3218 | Sparse-attention model, released 2025-12-01. |
+| `deepseek/deepseek-v3.2` | working | $0.269 / $0.40 | Sparse-attention model, released 2025-12-01. Price corrected 2026-07-20 (was listed at $0.2145/$0.3218). |
 | `deepseek/deepseek-r1-0528` | working | $0.50 / $2.15 | Newer point release of R1, cheaper than the base R1 entry above. Added as the 5th/buffer entry. |
 
 Source: openrouter.ai/deepseek and per-model pages
@@ -108,7 +144,9 @@ Source: openrouter.ai/minimax and per-model pages
 | `moonshotai/kimi-k2` | working | $0.57 / $2.30 | Original K2 (2025-07-11, aka "K2 0711"). |
 | `moonshotai/kimi-k2-0905` | working | $0.60 / $2.50 | Mid-point release between K2 and K2.6. Added as the 5th/buffer entry. |
 
-Kimi K3 is rumored for Q3 2026 but not released as of this check.
+**Update 2026-07-20:** Kimi K3 is out — see "OpenRouter: any-vendor picks"
+above. It's now in the catalog at $3.00 / $15.00, added as an extra option
+(not the default).
 
 Source: openrouter.ai/moonshotai and per-model pages
 
