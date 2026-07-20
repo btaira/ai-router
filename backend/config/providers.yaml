@@ -58,10 +58,18 @@
 # to `localhost` if running the app directly (Option B in the README) rather
 # than via Docker, or to another machine's IP if LM Studio runs elsewhere on
 # your network. Pricing is $0/M — local inference has no per-token cost.
+# `model: "not-configured"` is a sentinel — providers/base.py refuses to run
+# a local provider still set to it (clear error instead of silently sending
+# that literal string as the model), so pick a real one from the live
+# dropdown and Save before enabling. If both slots share one LM Studio
+# instance, requests to it are also serialized (see stage1_dispatch.py) —
+# a local server actively serves one model at a time, so two concurrent
+# requests asking for two different models would otherwise race and both
+# risk answering with whichever model happened to be loaded at that moment.
 
 providers:
   anthropic:
-    enabled: true
+    enabled: false
     display_name: "Anthropic"
     base_url: "https://api.anthropic.com/v1/messages"
     api_key_env: "ANTHROPIC_API_KEY"
@@ -94,7 +102,7 @@ providers:
         pricing: {input_per_million: 10.00, output_per_million: 50.00}
 
   openai:
-    enabled: true
+    enabled: false
     display_name: "OpenAI"
     base_url: "https://api.openai.com/v1/responses"
     api_key_env: "OPENAI_API_KEY"
@@ -122,7 +130,7 @@ providers:
         pricing: {input_per_million: 0.75, output_per_million: 4.50}
 
   google:
-    enabled: true
+    enabled: false
     display_name: "Google Gemini"
     base_url: "https://generativelanguage.googleapis.com/v1beta/models"
     api_key_env: "GOOGLE_API_KEY"
@@ -155,7 +163,7 @@ providers:
   # --- Routed through OpenRouter (openrouter.ai) — see note above. ---
 
   deepseek:
-    enabled: false
+    enabled: true
     display_name: "DeepSeek · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
@@ -320,11 +328,11 @@ providers:
   # --- Local inference (LM Studio) — see the "LOCAL LLMs" note above. ---
 
   local1:
-    enabled: false
+    enabled: true
     display_name: "Local LLM 1 (LM Studio)"
     base_url: "http://host.docker.internal:1234/v1/chat/completions"
     api_key_env: "LMSTUDIO_API_KEY"
-    model: "not-configured"
+    model: "deepseek/deepseek-r1-0528-qwen3-8b"
     max_tokens: 4096
     request_style: openai_chat
     default_temperature: 1.0
@@ -332,11 +340,11 @@ providers:
     local: true
 
   local2:
-    enabled: false
+    enabled: true
     display_name: "Local LLM 2 (LM Studio)"
     base_url: "http://host.docker.internal:1234/v1/chat/completions"
     api_key_env: "LMSTUDIO_API_KEY"
-    model: "not-configured"
+    model: "meta/llama-3.3-70b"
     max_tokens: 4096
     request_style: openai_chat
     default_temperature: 1.0

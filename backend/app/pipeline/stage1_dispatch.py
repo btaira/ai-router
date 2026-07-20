@@ -19,15 +19,37 @@ import asyncio
 import httpx
 
 from .. import db
-from ..config import AppConfig
+from ..config import AppConfig, ProviderConfig
 from ..providers import ProviderResult, get_adapter
+
+# A local inference server (LM Studio, etc.) actively serves one model at a
+# time — if two local provider slots share a base_url (the normal setup:
+# both pointed at the same LM Studio instance so you can run two different
+# loaded models as independent stage-1 participants) and their requests
+# race, whichever model the server has active when *each* request is
+# actually processed answers both, regardless of what each one asked for.
+# One lock per base_url serializes calls to the same local server so a
+# slot's own request always completes — model swap included — before the
+# next one starts, without affecting how fast hosted vendors run.
+_local_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(pcfg: ProviderConfig) -> asyncio.Lock | None:
+    if not pcfg.local:
+        return None
+    return _local_locks.setdefault(pcfg.base_url, asyncio.Lock())
 
 
 async def _dispatch_one(provider_key: str, client: httpx.AsyncClient, cfg: AppConfig, prompt: str, run_id: str) -> None:
     pcfg = cfg.providers[provider_key]
     adapter = get_adapter(pcfg)
+    lock = _lock_for(pcfg)
     try:
-        result = await asyncio.wait_for(adapter.generate(client, prompt), timeout=cfg.stages.stage1_timeout)
+        if lock is not None:
+            async with lock:
+                result = await asyncio.wait_for(adapter.generate(client, prompt), timeout=cfg.stages.stage1_timeout)
+        else:
+            result = await asyncio.wait_for(adapter.generate(client, prompt), timeout=cfg.stages.stage1_timeout)
     except asyncio.TimeoutError:
         result = ProviderResult(
             provider=provider_key, model=pcfg.model, status="timeout",

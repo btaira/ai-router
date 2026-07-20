@@ -1,8 +1,12 @@
+import asyncio
+
 import httpx
 import respx
 from httpx import Response
 
-from app.config import ProviderConfig, load_config
+from app import db
+from app.config import AppConfig, NOT_CONFIGURED_MODEL, ProviderConfig, StageConfig, load_config
+from app.pipeline import stage1_dispatch
 from app.providers import get_adapter
 
 LOCAL_YAML = """
@@ -113,10 +117,11 @@ async def test_non_local_provider_still_requires_api_key(monkeypatch):
 async def test_local_provider_reports_actual_model_from_response(monkeypatch):
     # A local server doesn't validate the requested `model` — it'll happily
     # serve whatever it has loaded and echo *that* back in the response,
-    # which matters most when the configured model is a stale/unset
-    # placeholder like "not-configured".
+    # which matters most when the configured model isn't actually what's
+    # loaded right now (a stale pick, or the server swapped models under
+    # a concurrent request — see the stage1_dispatch serialization tests).
     monkeypatch.delenv("LMSTUDIO_API_KEY", raising=False)
-    cfg = _local_provider_config(model="not-configured")
+    cfg = _local_provider_config(model="requested-model-not-actually-loaded")
     adapter = get_adapter(cfg)
 
     with respx.mock(assert_all_called=True) as mock:
@@ -204,3 +209,90 @@ async def test_directly_hosted_vendor_ignores_response_model_field(monkeypatch):
             result = await adapter.generate(client, "hello")
 
     assert result.model == "claude-sonnet-5"
+
+
+async def test_local_provider_refuses_to_run_unconfigured_model():
+    cfg = _local_provider_config(model=NOT_CONFIGURED_MODEL)
+    adapter = get_adapter(cfg)
+
+    with respx.mock(assert_all_called=False) as mock:
+        async with httpx.AsyncClient() as client:
+            result = await adapter.generate(client, "hello")
+        assert mock.calls.call_count == 0  # never even tries the network call
+
+    assert result.status == "error"
+    assert "no model selected" in result.error
+
+
+def _stage_config(**overrides):
+    defaults = dict(
+        stage1_timeout=5, stage2_enabled=False, stage2_mode="designated_fact_checkers",
+        fact_checkers=[], stage2_timeout=5, synthesis_provider="local1", stage3_timeout=5,
+        citation_timeout=5, citation_retries=0, citation_user_agent="test-agent/1.0",
+    )
+    defaults.update(overrides)
+    return StageConfig(**defaults)
+
+
+async def test_stage1_serializes_local_providers_sharing_a_base_url(test_db):
+    # Two local slots pointed at the same LM Studio instance is the normal
+    # setup — if their requests aren't serialized, a slow model-swap on one
+    # can overlap with the other's request and both risk answering with
+    # whichever model happened to be active at that moment (the actual bug
+    # this test guards against).
+    shared_url = "http://shared-local-server:9999/v1/chat/completions"
+    in_flight = {"count": 0, "max_seen": 0}
+
+    async def slow_responder(request):
+        in_flight["count"] += 1
+        in_flight["max_seen"] = max(in_flight["max_seen"], in_flight["count"])
+        await asyncio.sleep(0.05)
+        in_flight["count"] -= 1
+        return Response(200, json={
+            "model": "whatever-is-loaded",
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        })
+
+    providers = {
+        "local1": _local_provider_config(key="local1", base_url=shared_url, enabled=True),
+        "local2": _local_provider_config(key="local2", base_url=shared_url, enabled=True),
+    }
+    cfg = AppConfig(providers=providers, stages=_stage_config(), raw={})
+    run_id = db.create_run(prompt="x", skip_stage2=True, stage2_mode="designated_fact_checkers", synthesis_provider="local1")
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post(shared_url).mock(side_effect=slow_responder)
+        await stage1_dispatch.run_stage1(run_id, "hello", cfg)
+
+    assert in_flight["max_seen"] == 1  # never more than one in-flight request to the shared server
+
+
+async def test_stage1_does_not_serialize_across_different_local_servers(test_db):
+    # Two local providers pointed at *different* servers shouldn't wait on
+    # each other — only same-base_url calls need to be serialized.
+    in_flight = {"count": 0, "max_seen": 0}
+
+    async def slow_responder(request):
+        in_flight["count"] += 1
+        in_flight["max_seen"] = max(in_flight["max_seen"], in_flight["count"])
+        await asyncio.sleep(0.05)
+        in_flight["count"] -= 1
+        return Response(200, json={
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        })
+
+    providers = {
+        "local1": _local_provider_config(key="local1", base_url="http://server-a:9999/v1/chat/completions", enabled=True),
+        "local2": _local_provider_config(key="local2", base_url="http://server-b:9999/v1/chat/completions", enabled=True),
+    }
+    cfg = AppConfig(providers=providers, stages=_stage_config(), raw={})
+    run_id = db.create_run(prompt="x", skip_stage2=True, stage2_mode="designated_fact_checkers", synthesis_provider="local1")
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("http://server-a:9999/v1/chat/completions").mock(side_effect=slow_responder)
+        mock.post("http://server-b:9999/v1/chat/completions").mock(side_effect=slow_responder)
+        await stage1_dispatch.run_stage1(run_id, "hello", cfg)
+
+    assert in_flight["max_seen"] == 2  # both ran concurrently

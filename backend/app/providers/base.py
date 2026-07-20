@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from ..config import ProviderConfig
+from ..config import NOT_CONFIGURED_MODEL, ProviderConfig
 
 
 class ProviderError(Exception):
@@ -70,6 +70,11 @@ class BaseAdapter:
             return ProviderResult(
                 provider=self.cfg.key, model=self.cfg.model, status="error",
                 error=f"missing API key: set ${self.cfg.api_key_env}",
+            )
+        if self.cfg.local and self.cfg.model == NOT_CONFIGURED_MODEL:
+            return ProviderResult(
+                provider=self.cfg.key, model=self.cfg.model, status="error",
+                error="no model selected — open Settings > Model settings and pick a model for this local provider",
             )
 
         url, headers, body = self.build_request(prompt, history)

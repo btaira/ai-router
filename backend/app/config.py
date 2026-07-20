@@ -17,6 +17,12 @@ CONFIG_PATH = Path(os.environ.get("AI_ROUTER_CONFIG", Path(__file__).resolve().p
 # bind-mounts it into the container so a write from inside a running
 # container lands on the host and survives an image rebuild.
 ENV_PATH = Path(os.environ.get("AI_ROUTER_ENV", Path(__file__).resolve().parent.parent.parent / ".env"))
+# Sentinel `model:` value for a local provider (local1/local2 in
+# providers.yaml) that hasn't been pointed at a real model yet — checked in
+# providers/base.py, which refuses to run a local provider still set to
+# this rather than silently sending it as a literal (and meaningless)
+# model string to the local server.
+NOT_CONFIGURED_MODEL = "not-configured"
 
 
 @dataclass
