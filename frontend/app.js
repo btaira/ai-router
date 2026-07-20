@@ -507,6 +507,34 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// A provider's model/temperature/top-p only takes effect once its own
+// "Save" button in Model settings is clicked — but it's easy to change a
+// dropdown, not notice the still-unsaved row, and hit the big Run button
+// expecting the visibly-selected model to be used (it wouldn't be; the
+// previously-saved one would run instead). Auto-saves anything left
+// unsaved right before a run starts, so what's shown in Model settings is
+// always what actually runs.
+async function saveAllDirtyModelSettings() {
+  const dirtyProviderKeys = [];
+  document.querySelectorAll(".model-select[data-provider]").forEach((select) => {
+    const providerKey = select.dataset.provider;
+    const p = state.providers.find((pr) => pr.key === providerKey);
+    if (!p) return;
+    const tempInput = document.querySelector(`.temperature-input[data-provider="${providerKey}"]`);
+    const topPInput = document.querySelector(`.top-p-input[data-provider="${providerKey}"]`);
+    const currentTemp = tempInput && tempInput.value !== "" ? Number(tempInput.value) : null;
+    const currentTopP = topPInput && topPInput.value !== "" ? Number(topPInput.value) : null;
+    const dirty = select.value !== p.model || currentTemp !== (p.temperature ?? null) || currentTopP !== (p.top_p ?? null);
+    if (dirty) dirtyProviderKeys.push(providerKey);
+  });
+  // One at a time, not Promise.all — providers.yaml is a single shared file
+  // (locked server-side now, but there's still no reason to fire a pile of
+  // concurrent writes to it when sequential is just as fast in practice).
+  for (const providerKey of dirtyProviderKeys) {
+    await saveProviderSettings(providerKey);
+  }
+}
+
 async function submitRun(ev) {
   ev.preventDefault();
 
@@ -523,6 +551,7 @@ async function submitRun(ev) {
 
   el("submit-btn").disabled = true;
   try {
+    await saveAllDirtyModelSettings();
     const res = await fetch("/api/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

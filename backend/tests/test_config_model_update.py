@@ -1,3 +1,6 @@
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from app.config import (
@@ -83,3 +86,36 @@ def test_sampling_params_insert_update_and_clear(yaml_path):
 
     # unrelated fields still intact
     assert cfg.providers["deepseek"].model == "deepseek-test"
+
+
+def test_concurrent_saves_to_different_providers_dont_clobber_each_other(yaml_path):
+    # FastAPI runs these sync route handlers in a real OS threadpool — saving
+    # several providers' Model settings around the same time genuinely races
+    # at the OS level, not just via asyncio interleaving. Without a lock
+    # around the read-modify-write in set_provider_field, two threads can
+    # both read the file before either writes, and whichever writes second
+    # silently discards the first thread's change. Round-tripping this many
+    # times maximizes the chance of exposing that race if the lock is ever
+    # removed; with the lock in place every round is fully consistent.
+    providers = ["anthropic", "openai", "deepseek"]
+
+    for round_num in range(20):
+        targets = {p: f"{p}-round-{round_num}" for p in providers}
+        barrier = threading.Barrier(len(providers))
+
+        def update_one(provider_key: str, new_model: str) -> None:
+            barrier.wait()  # line every thread up to start writing at the same moment
+            update_provider_model(provider_key, new_model, path=yaml_path)
+
+        with ThreadPoolExecutor(max_workers=len(providers)) as pool:
+            futures = [pool.submit(update_one, p, m) for p, m in targets.items()]
+            for f in futures:
+                f.result()
+
+        cfg = load_config(yaml_path)
+        for provider_key, expected_model in targets.items():
+            assert cfg.providers[provider_key].model == expected_model, (
+                f"round {round_num}: {provider_key} lost its update (got "
+                f"{cfg.providers[provider_key].model!r}, expected {expected_model!r}) "
+                "— a concurrent write from another provider's save clobbered it"
+            )
