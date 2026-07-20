@@ -87,8 +87,19 @@ class BaseAdapter:
             data = resp.json()
             text, thinking_text, in_tok, out_tok = self.parse_response(data)
             cost = compute_cost(self.cfg, in_tok, out_tok)
+            # For local servers, report whichever model actually answered
+            # rather than the configured string — a local server (LM
+            # Studio, etc.) doesn't validate the requested `model` and will
+            # silently serve whatever it has loaded instead, so trusting
+            # our own config here could show the wrong (or a placeholder
+            # like "not-configured") name for what actually generated the
+            # answer. Hosted vendors' APIs reject an unrecognized model
+            # outright, so this only matters for local providers.
+            reported_model = self.cfg.model
+            if self.cfg.local and data.get("model"):
+                reported_model = data["model"]
             return ProviderResult(
-                provider=self.cfg.key, model=self.cfg.model, status="ok",
+                provider=self.cfg.key, model=reported_model, status="ok",
                 text=text, thinking_text=thinking_text, raw=data,
                 input_tokens=in_tok, output_tokens=out_tok, cost_usd=cost,
                 latency_ms=latency_ms, request_body=body,

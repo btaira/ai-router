@@ -108,3 +108,69 @@ async def test_non_local_provider_still_requires_api_key(monkeypatch):
 
     assert result.status == "error"
     assert "missing API key" in result.error
+
+
+async def test_local_provider_reports_actual_model_from_response(monkeypatch):
+    # A local server doesn't validate the requested `model` — it'll happily
+    # serve whatever it has loaded and echo *that* back in the response,
+    # which matters most when the configured model is a stale/unset
+    # placeholder like "not-configured".
+    monkeypatch.delenv("LMSTUDIO_API_KEY", raising=False)
+    cfg = _local_provider_config(model="not-configured")
+    adapter = get_adapter(cfg)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("http://localhost:9999/v1/chat/completions").mock(
+            return_value=Response(200, json={
+                "model": "gemma-4-12b-it",
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            })
+        )
+        async with httpx.AsyncClient() as client:
+            result = await adapter.generate(client, "hello")
+
+    assert result.model == "gemma-4-12b-it"
+
+
+async def test_local_provider_falls_back_to_configured_model_if_response_omits_it(monkeypatch):
+    monkeypatch.delenv("LMSTUDIO_API_KEY", raising=False)
+    cfg = _local_provider_config(model="my-local-model")
+    adapter = get_adapter(cfg)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("http://localhost:9999/v1/chat/completions").mock(
+            return_value=Response(200, json={
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            })
+        )
+        async with httpx.AsyncClient() as client:
+            result = await adapter.generate(client, "hello")
+
+    assert result.model == "my-local-model"
+
+
+async def test_non_local_provider_ignores_response_model_field(monkeypatch):
+    # A hosted vendor's configured model string is trustworthy (their API
+    # rejects an unrecognized one outright) — don't let a response's own
+    # `model` field override it, unlike the local-provider case above.
+    monkeypatch.setenv("SOME_KEY_FOR_TEST", "key-value")
+    cfg = _local_provider_config(
+        key="deepseek", display_name="DeepSeek", api_key_env="SOME_KEY_FOR_TEST",
+        model="deepseek/deepseek-v4-pro", local=False,
+    )
+    adapter = get_adapter(cfg)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("http://localhost:9999/v1/chat/completions").mock(
+            return_value=Response(200, json={
+                "model": "some-other-model-id",
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            })
+        )
+        async with httpx.AsyncClient() as client:
+            result = await adapter.generate(client, "hello")
+
+    assert result.model == "deepseek/deepseek-v4-pro"
