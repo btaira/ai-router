@@ -8,6 +8,11 @@ class CreateRunRequest(BaseModel):
     skip_stage2: bool = False
     stage2_mode: str | None = None  # designated_fact_checkers | full_mesh | diff_then_check
     synthesis_provider: str | None = None
+    # Which providers act as designated fact-checkers for this run (used by
+    # designated_fact_checkers and diff_then_check modes; full_mesh ignores
+    # it and always uses every enabled provider). None = use the
+    # deployment's configured default (pipeline.stage2.fact_checkers).
+    fact_checkers: list[str] | None = None
 
 
 class ResumeRunRequest(BaseModel):

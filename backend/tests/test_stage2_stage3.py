@@ -27,6 +27,13 @@ def _anthropic_json_body(payload: dict):
     }
 
 
+def _openai_responses_json_body(payload: dict):
+    return {
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": json.dumps(payload)}]}],
+        "usage": {"input_tokens": 8, "output_tokens": 16},
+    }
+
+
 async def test_designated_fact_checker_parses_structured_claims(test_db, test_config):
     _seed_stage1()
     claims_payload = {
@@ -97,3 +104,52 @@ async def test_synthesis_with_no_stage1_answers_errors_gracefully(test_db, test_
     result = await stage3_synthesis.run_stage3("empty-run", "prompt", test_config)
     assert result["status"] == "error"
     assert "no successful stage-1" in result["error"]
+
+
+async def test_synthesis_stores_thinking_text(test_db, test_config):
+    _seed_stage1()
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("https://fake-anthropic.test/v1/messages").mock(
+            return_value=Response(200, json={
+                "content": [
+                    {"type": "thinking", "thinking": "Weighing which stage-1 answer is more accurate..."},
+                    {"type": "text", "text": "Paris has about 2.1 million people."},
+                ],
+                "usage": {"input_tokens": 50, "output_tokens": 40},
+            })
+        )
+        result = await stage3_synthesis.run_stage3("run1", "how many people live in paris", test_config)
+
+    assert result["status"] == "ok"
+    assert "Weighing which stage-1 answer" in result["thinking_text"]
+
+
+async def test_run_level_fact_checkers_override_the_default(test_db, test_config):
+    # TEST_YAML's configured default is fact_checkers: [anthropic] — this run
+    # asks for openai instead, and only openai should be called as a checker.
+    run_id = db.create_run(prompt="x", skip_stage2=False, stage2_mode="designated_fact_checkers",
+                            synthesis_provider="anthropic", fact_checkers=["openai"])
+    _seed_stage1(run_id)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("https://fake-openai.test/v1/responses").mock(
+            return_value=Response(200, json=_openai_responses_json_body({"claims": []}))
+        )
+        results = await stage2_factcheck.run_stage2(run_id, "how many people live in paris", test_config)
+
+    assert len(results) == 3  # openai x 3 subjects
+    assert all(r["checker_provider"] == "openai" for r in results)
+
+
+async def test_run_without_fact_checkers_override_uses_configured_default(test_db, test_config):
+    run_id = db.create_run(prompt="x", skip_stage2=False, stage2_mode="designated_fact_checkers",
+                            synthesis_provider="anthropic")  # no fact_checkers override
+    _seed_stage1(run_id)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("https://fake-anthropic.test/v1/messages").mock(
+            return_value=Response(200, json=_anthropic_json_body({"claims": []}))
+        )
+        results = await stage2_factcheck.run_stage2(run_id, "how many people live in paris", test_config)
+
+    assert all(r["checker_provider"] == "anthropic" for r in results)  # TEST_YAML's configured default

@@ -135,6 +135,18 @@ textarea, select, input[type="text"] {
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
+.fact-checkers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.fact-checker-row { color: var(--text); }
+.fact-checker-row input { width: auto; }
+
 .prompt-input {
   border: 2px solid var(--accent) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
@@ -377,6 +389,29 @@ section h2 { font-size: 15px; margin-bottom: 10px; }
 .citation-badge.verified { border-color: var(--ok); }
 .citation-badge.removed { border-color: var(--bad); text-decoration: line-through; opacity: 0.75; }
 .citation-badge .icon { flex-shrink: 0; }
+
+.synthesis-thinking { margin-top: 14px; padding: 0 20px; }
+.synthesis-thinking summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.synthesis-thinking .thinking-text {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 
 @keyframes pulse-dot {
   0%, 100% { transform: scale(1); opacity: 1; }

@@ -13,17 +13,64 @@ const TERMINAL_STATUSES = ["complete", "failed", "cancelled"];
 const el = (id) => document.getElementById(id);
 
 let defaultSynthesisProvider = null;
+let defaultFactCheckers = [];
 
 async function loadConfig() {
   const res = await fetch("/api/config");
   const cfg = await res.json();
   state.providers = cfg.providers;
   defaultSynthesisProvider = cfg.stage3.default_synthesis_provider;
+  defaultFactCheckers = cfg.stage2.fact_checkers || [];
 
   refreshSynthesisDropdown();
   el("stage2-mode").value = cfg.stage2.default_mode;
 
   renderModelSettings();
+  renderFactCheckerPicker();
+  updateFactCheckersVisibility();
+}
+
+// One checkbox per enabled provider, pre-checked to match this deployment's
+// configured default fact-checkers (pipeline.stage2.fact_checkers) — picks
+// here override that default for the next run only, nothing is persisted.
+function renderFactCheckerPicker() {
+  const container = el("fact-checkers-list");
+  const previouslyChecked = new Set(
+    [...container.querySelectorAll(".fact-checker-checkbox:checked")].map((cb) => cb.value)
+  );
+  const isFirstRender = container.children.length === 0;
+  const enabledKeys = state.providers.filter((p) => p.enabled).map((p) => p.key);
+  // The deployment's configured default checkers might not even be enabled
+  // right now (e.g. disabled for cost, or never had a key) — falling back
+  // to "check everything enabled" instead of leaving every box unchecked
+  // avoids designated-fact-checkers mode silently checking nothing.
+  const defaultsStillAvailable = defaultFactCheckers.some((k) => enabledKeys.includes(k));
+  container.innerHTML = "";
+  for (const p of state.providers) {
+    if (!p.enabled) continue; // disabled providers can't check anything
+    let checked;
+    if (isFirstRender) {
+      checked = defaultsStillAvailable ? defaultFactCheckers.includes(p.key) : true;
+    } else {
+      checked = previouslyChecked.has(p.key);
+    }
+    const label = document.createElement("label");
+    label.className = "row fact-checker-row";
+    label.innerHTML = `
+      <input type="checkbox" class="fact-checker-checkbox" value="${escapeHtml(p.key)}" ${checked ? "checked" : ""} />
+      ${escapeHtml(p.display_name)}
+    `;
+    container.appendChild(label);
+  }
+}
+
+function updateFactCheckersVisibility() {
+  const isFullMesh = el("stage2-mode").value === "full_mesh";
+  el("fact-checkers-field").classList.toggle("hidden", isFullMesh);
+}
+
+function getSelectedFactCheckers() {
+  return [...document.querySelectorAll(".fact-checker-checkbox:checked")].map((cb) => cb.value);
 }
 
 // Rebuilds only the "Synthesis model" <select> from state.providers, without
@@ -282,6 +329,7 @@ async function toggleProviderEnabled(providerKey, enabled) {
     statusEl.textContent = data.enabled ? "enabled" : "disabled — skipped in future runs";
     statusEl.className = "model-save-status ok";
     refreshSynthesisDropdown(); // only enabled providers are offered as the synthesis model
+    renderFactCheckerPicker(); // ditto for the fact-checker checkboxes
   } catch (e) {
     statusEl.textContent = `error: ${e}`;
     statusEl.className = "model-save-status error";
@@ -560,6 +608,7 @@ async function submitRun(ev) {
         skip_stage2: el("skip-stage2").checked,
         stage2_mode: el("stage2-mode").value,
         synthesis_provider: el("synthesis-provider").value,
+        fact_checkers: getSelectedFactCheckers(),
       }),
     });
     if (!res.ok) {
@@ -624,6 +673,12 @@ function reusePrompt(run) {
   if (run.synthesis_provider && [...synthesisSelect.options].some((o) => o.value === run.synthesis_provider)) {
     synthesisSelect.value = run.synthesis_provider;
   }
+  if (run.fact_checkers) {
+    document.querySelectorAll(".fact-checker-checkbox").forEach((cb) => {
+      cb.checked = run.fact_checkers.includes(cb.value);
+    });
+  }
+  updateFactCheckersVisibility();
   el("prompt").scrollIntoView({ behavior: "smooth", block: "center" });
   el("prompt").focus();
 }
@@ -843,6 +898,14 @@ function renderSynthesis(synthesis, citationVerifications) {
     div.innerHTML = `<span class="icon">${icon}</span><span>${escapeHtml(c.url)}</span><span style="margin-left:auto;color:var(--muted)">${escapeHtml(statusText)}${c.found_in_sources ? " · in sources" : ""}</span>`;
     citationsDiv.appendChild(div);
   }
+
+  const thinkingSection = el("synthesis-thinking-section");
+  if (synthesis.status === "ok" && synthesis.thinking_text) {
+    thinkingSection.classList.remove("hidden");
+    el("synthesis-thinking-text").textContent = synthesis.thinking_text;
+  } else {
+    thinkingSection.classList.add("hidden");
+  }
 }
 
 function renderFollowup(synthesis, followupMessages) {
@@ -1001,6 +1064,7 @@ async function resumeRun(runId) {
 }
 
 el("run-form").addEventListener("submit", submitRun);
+el("stage2-mode").addEventListener("change", updateFactCheckersVisibility);
 el("doc-file").addEventListener("change", uploadDocument);
 el("followup-form").addEventListener("submit", submitFollowup);
 el("followup-input").addEventListener("keydown", (ev) => {

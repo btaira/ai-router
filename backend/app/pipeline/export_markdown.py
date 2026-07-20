@@ -69,6 +69,14 @@ def build_run_markdown(
             w(f"Synthesis {synthesis.get('status')}: {synthesis.get('error')}")
         w("")
 
+        if synthesis.get("thinking_text"):
+            w("<details><summary>Reasoning behind this answer</summary>")
+            w("")
+            w(synthesis["thinking_text"])
+            w("")
+            w("</details>")
+            w("")
+
         if citation_verifications:
             w("### Citations")
             w("")

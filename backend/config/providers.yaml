@@ -167,7 +167,7 @@ providers:
     display_name: "DeepSeek · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
-    model: "z-ai/glm-5.2"
+    model: "tencent/hy3:free"
     reasoning:
       effort: "xhigh"
     tools:
@@ -215,7 +215,7 @@ providers:
     display_name: "MiniMax · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
-    model: "xiaomi/mimo-v2.5"
+    model: "nvidia/nemotron-3-ultra-550b-a55b:free"
     reasoning:
       effort: "xhigh"
     tools:
@@ -276,7 +276,7 @@ providers:
     display_name: "Moonshot (Kimi) · OpenRouter"
     base_url: "https://openrouter.ai/api/v1/chat/completions"
     api_key_env: "OPENROUTER_API_KEY"
-    model: "x-ai/grok-4.5"
+    model: "poolside/laguna-m.1:free"
     reasoning:
       effort: "xhigh"
     tools:
@@ -344,7 +344,7 @@ providers:
     display_name: "Local LLM 2 (LM Studio)"
     base_url: "http://host.docker.internal:1234/v1/chat/completions"
     api_key_env: "LMSTUDIO_API_KEY"
-    model: "meta/llama-3.3-70b"
+    model: "openai-gpt-oss-20b-abliterated-uncensored-neo-imatrix"
     max_tokens: 4096
     request_style: openai_chat
     default_temperature: 1.0

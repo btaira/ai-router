@@ -205,12 +205,17 @@ async def create_run(req: CreateRunRequest):
     synthesis_provider = req.synthesis_provider or cfg.stages.synthesis_provider
     if not cfg.providers[synthesis_provider].enabled:
         raise HTTPException(400, f"synthesis_provider {synthesis_provider!r} is disabled")
+    if req.fact_checkers is not None:
+        unknown = [p for p in req.fact_checkers if p not in cfg.providers]
+        if unknown:
+            raise HTTPException(400, f"unknown fact_checkers: {unknown}")
 
     run_id = db.create_run(
         prompt=req.prompt,
         skip_stage2=req.skip_stage2,
         stage2_mode=req.stage2_mode or cfg.stages.stage2_mode,
         synthesis_provider=synthesis_provider,
+        fact_checkers=req.fact_checkers,
     )
     _launch(run_id)
     return {"run_id": run_id}

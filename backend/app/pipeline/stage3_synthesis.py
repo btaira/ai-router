@@ -117,6 +117,7 @@ async def run_stage3(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
             run_id=run_id, provider=provider_key, status=result.status, synthesis_text=result.text,
             raw_response=result.raw, error=result.error, input_tokens=result.input_tokens,
             output_tokens=result.output_tokens, cost_usd=result.cost_usd, latency_ms=result.latency_ms,
+            thinking_text=result.thinking_text,
         )
 
     return db.get_synthesis_result(run_id)

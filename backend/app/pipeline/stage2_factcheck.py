@@ -81,15 +81,17 @@ async def _call_checker(checker: str, subject: str, fc_prompt: str, client: http
 
 
 def _select_checkers_and_subjects(mode: str, cfg: AppConfig, ok_providers: list[str],
-                                   answers_by_provider: dict[str, str]) -> tuple[list[str], list[str], dict[str, list[str]] | None]:
+                                   answers_by_provider: dict[str, str],
+                                   fact_checkers: list[str] | None) -> tuple[list[str], list[str], dict[str, list[str]] | None]:
     if mode == "full_mesh":
         return ok_providers, ok_providers, None
+    designated = fact_checkers if fact_checkers is not None else cfg.stages.fact_checkers
     if mode == "diff_then_check":
-        checkers = [c for c in cfg.stages.fact_checkers if c in ok_providers] or ok_providers[:1]
+        checkers = [c for c in designated if c in ok_providers] or ok_providers[:1]
         flagged = claim_diff.find_disagreement_candidates(answers_by_provider)
         return checkers, list(flagged.keys()), flagged
     # designated_fact_checkers
-    checkers = [c for c in cfg.stages.fact_checkers if c in ok_providers]
+    checkers = [c for c in designated if c in ok_providers]
     return checkers, ok_providers, None
 
 
@@ -106,7 +108,7 @@ async def run_stage2(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
     mode = (run.get("stage2_mode") if run else None) or cfg.stages.stage2_mode
     answers_by_provider = {p: r["response_text"] for p, r in ok_rows.items()}
     checkers, subjects, flagged_by_subject = _select_checkers_and_subjects(
-        mode, cfg, list(ok_rows.keys()), answers_by_provider
+        mode, cfg, list(ok_rows.keys()), answers_by_provider, run.get("fact_checkers") if run else None
     )
     checkers = [c for c in checkers if c in cfg.providers and cfg.providers[c].enabled]
 

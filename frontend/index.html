@@ -47,6 +47,19 @@
         </select>
       </label>
 
+      <div id="fact-checkers-field" class="field">
+        <span class="field-label-row">
+          Fact-checkers
+          <span class="info-bubble" tabindex="0">
+            <span class="info-icon" aria-hidden="true">ⓘ</span>
+            <span class="info-tooltip">
+              Which enabled models review every answer for unsupported/contradicted claims. Used by "Designated fact-checkers" and "Diff-then-check" modes — "Full mesh" ignores this and always uses every enabled model instead. Defaults to this deployment's configured checkers; picks here apply to this run only.
+            </span>
+          </span>
+        </span>
+        <div id="fact-checkers-list" class="fact-checkers-list"></div>
+      </div>
+
       <label class="field">
         Synthesis model
         <select id="synthesis-provider"></select>
@@ -116,6 +129,13 @@
         <h2>Synthesized answer</h2>
         <div id="synthesis-text" class="synthesis-text"></div>
         <div id="citations" class="citations"></div>
+
+        <div id="synthesis-thinking-section" class="synthesis-thinking hidden">
+          <details>
+            <summary>Reasoning behind this answer</summary>
+            <div id="synthesis-thinking-text" class="thinking-text"></div>
+          </details>
+        </div>
 
         <div id="followup-section" class="followup-section hidden">
           <div class="followup-heading">Go deeper</div>

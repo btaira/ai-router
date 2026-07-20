@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS runs (
     skip_stage2 INTEGER NOT NULL DEFAULT 0,
     stage2_mode TEXT,
     synthesis_provider TEXT,
+    fact_checkers TEXT,                -- JSON list of provider keys; NULL = use the deployment's configured default
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS synthesis_results (
     provider TEXT NOT NULL,
     status TEXT NOT NULL,
     synthesis_text TEXT,
+    thinking_text TEXT,
     raw_response_json TEXT,
     error TEXT,
     input_tokens INTEGER,
@@ -129,23 +131,38 @@ def get_conn() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, coltype: str) -> None:
+    """Adds `column` to `table` if an existing (pre-upgrade) database's copy
+    doesn't have it yet — `CREATE TABLE IF NOT EXISTS` in SCHEMA only
+    applies to brand-new databases, so a column added to that string later
+    needs an explicit ALTER TABLE fallback for anyone upgrading in place.
+    """
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+
+
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "synthesis_results", "thinking_text", "TEXT")
+        _ensure_column(conn, "runs", "fact_checkers", "TEXT")
 
 
 def new_run_id() -> str:
     return uuid.uuid4().hex[:16]
 
 
-def create_run(prompt: str, skip_stage2: bool, stage2_mode: str, synthesis_provider: str) -> str:
+def create_run(prompt: str, skip_stage2: bool, stage2_mode: str, synthesis_provider: str,
+                fact_checkers: list[str] | None = None) -> str:
     run_id = new_run_id()
     now = time.time()
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO runs (run_id, prompt, status, skip_stage2, stage2_mode, synthesis_provider, created_at, updated_at) "
-            "VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)",
-            (run_id, prompt, int(skip_stage2), stage2_mode, synthesis_provider, now, now),
+            "INSERT INTO runs (run_id, prompt, status, skip_stage2, stage2_mode, synthesis_provider, "
+            "fact_checkers, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?)",
+            (run_id, prompt, int(skip_stage2), stage2_mode, synthesis_provider,
+             json.dumps(fact_checkers) if fact_checkers is not None else None, now, now),
         )
     return run_id
 
@@ -172,10 +189,15 @@ def mark_stray_running_rows_cancelled(run_id: str) -> None:
         )
 
 
+def _decode_run_row(row: dict[str, Any]) -> dict[str, Any]:
+    row["fact_checkers"] = json.loads(row["fact_checkers"]) if row.get("fact_checkers") else None
+    return row
+
+
 def get_run(run_id: str) -> dict[str, Any] | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-        return dict(row) if row else None
+        return _decode_run_row(dict(row)) if row else None
 
 
 def delete_run(run_id: str) -> bool:
@@ -201,7 +223,7 @@ def list_runs(limit: int = 50) -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_decode_run_row(dict(r)) for r in rows]
 
 
 def upsert_stage1_response(run_id: str, provider: str, model: str, status: str, request: dict,
@@ -270,21 +292,23 @@ def get_fact_check_results(run_id: str) -> list[dict[str, Any]]:
 
 def upsert_synthesis_result(run_id: str, provider: str, status: str, synthesis_text: str | None,
                              raw_response: Any, error: str | None, input_tokens: int | None,
-                             output_tokens: int | None, cost_usd: float | None, latency_ms: float | None) -> None:
+                             output_tokens: int | None, cost_usd: float | None, latency_ms: float | None,
+                             thinking_text: str | None = None) -> None:
     with get_conn() as conn:
         conn.execute(
             """
             INSERT INTO synthesis_results
-                (run_id, provider, status, synthesis_text, raw_response_json, error,
+                (run_id, provider, status, synthesis_text, thinking_text, raw_response_json, error,
                  input_tokens, output_tokens, cost_usd, latency_ms, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id) DO UPDATE SET
                 provider=excluded.provider, status=excluded.status, synthesis_text=excluded.synthesis_text,
+                thinking_text=excluded.thinking_text,
                 raw_response_json=excluded.raw_response_json, error=excluded.error,
                 input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
                 cost_usd=excluded.cost_usd, latency_ms=excluded.latency_ms, created_at=excluded.created_at
             """,
-            (run_id, provider, status, synthesis_text,
+            (run_id, provider, status, synthesis_text, thinking_text,
              json.dumps(raw_response, default=str) if raw_response is not None else None,
              error, input_tokens, output_tokens, cost_usd, latency_ms, time.time()),
         )
