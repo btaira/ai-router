@@ -44,6 +44,20 @@
 # Anthropic requires temperature=1 while extended thinking is enabled) — if
 # that happens the provider's own error message will explain why, surfaced
 # per-provider without blocking the other five.
+#
+# LOCAL LLMs: local1/local2 (`local: true`) talk to a local OpenAI-compatible
+# inference server — LM Studio by default — instead of a hosted vendor API.
+# No API key needed (the running server doesn't check it); `model:` is
+# whatever's currently loaded in LM Studio, picked from a dropdown fetched
+# live via GET /api/config/providers/{key}/local-models (not a static
+# `models:` catalog — a local server's available models change too often for
+# that). Both point at the same LM Studio instance/port by default so you can
+# run two different locally-loaded models as two independent stage-1
+# participants; base_url uses `host.docker.internal`, Docker Desktop's DNS
+# name for reaching the host machine from inside the container — change it
+# to `localhost` if running the app directly (Option B in the README) rather
+# than via Docker, or to another machine's IP if LM Studio runs elsewhere on
+# your network. Pricing is $0/M — local inference has no per-token cost.
 
 providers:
   anthropic:
@@ -175,16 +189,18 @@ providers:
         pricing: {input_per_million: 0.14, output_per_million: 0.28}
       - id: "z-ai/glm-5.2"
         pricing: {input_per_million: 0.959, output_per_million: 3.014}
-      - id: "z-ai/glm-4.7"
-        pricing: {input_per_million: 0.40, output_per_million: 1.75}
       - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
         pricing: {input_per_million: 0.00, output_per_million: 0.00}
-      - id: "qwen/qwen3-32b"
-        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "stepfun/step-3.7-flash"
+        pricing: {input_per_million: 0.20, output_per_million: 1.15}
+      - id: "poolside/laguna-m.1:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5-pro"
+        pricing: {input_per_million: 0.435, output_per_million: 0.87}
       - id: "x-ai/grok-4.5"
         pricing: {input_per_million: 2.00, output_per_million: 6.00}
-      - id: "meta-llama/llama-3.3-70b-instruct"
-        pricing: {input_per_million: 0.13, output_per_million: 0.40}
+      - id: "mistralai/mistral-nemo"
+        pricing: {input_per_million: 0.019, output_per_million: 0.03}
 
   minimax:
     enabled: true
@@ -216,29 +232,36 @@ providers:
       # note at the top of this file), so — unlike Anthropic/OpenAI/Google,
       # which each only offer their own vendor's models — these three slots
       # can each be pointed at *any* OpenRouter-hosted model, not just one
-      # from their namesake vendor. This shared block is OpenRouter's
-      # current top-ranked/most-used models (per openrouter.ai/rankings,
-      # checked 2026-07-20) that aren't already natively available via the
-      # Anthropic/OpenAI/Google slots above (Claude/GPT/Gemini entries on
-      # that ranking are skipped here — pick those from their own native
-      # slot instead, it supports more features). Pricing verified the same
-      # day via OpenRouter's public /api/v1/models endpoint. ---
+      # from their namesake vendor. This shared block is the top 15 models
+      # on OpenRouter's LLM Leaderboard by weekly usage
+      # (openrouter.ai/rankings#leaderboard-table, checked 2026-07-20),
+      # excluding anything from Anthropic/OpenAI/Google (pick those from
+      # their own native slot instead — better feature support) and
+      # anything already covered by this provider's own vendor-specific
+      # entries above (so e.g. deepseek/deepseek-v4-pro doesn't appear
+      # twice in DeepSeek's own dropdown) — which is why this list is 9
+      # entries, not 15: the other 6 of the top 15 are already present
+      # somewhere in the three vendor-specific lists in this file. Pricing
+      # verified the same day via OpenRouter's public /api/v1/models
+      # endpoint. ---
       - id: "tencent/hy3:free"
         pricing: {input_per_million: 0.00, output_per_million: 0.00}
       - id: "xiaomi/mimo-v2.5"
         pricing: {input_per_million: 0.14, output_per_million: 0.28}
       - id: "z-ai/glm-5.2"
         pricing: {input_per_million: 0.959, output_per_million: 3.014}
-      - id: "z-ai/glm-4.7"
-        pricing: {input_per_million: 0.40, output_per_million: 1.75}
       - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
         pricing: {input_per_million: 0.00, output_per_million: 0.00}
-      - id: "qwen/qwen3-32b"
-        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "stepfun/step-3.7-flash"
+        pricing: {input_per_million: 0.20, output_per_million: 1.15}
+      - id: "poolside/laguna-m.1:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5-pro"
+        pricing: {input_per_million: 0.435, output_per_million: 0.87}
       - id: "x-ai/grok-4.5"
         pricing: {input_per_million: 2.00, output_per_million: 6.00}
-      - id: "meta-llama/llama-3.3-70b-instruct"
-        pricing: {input_per_million: 0.13, output_per_million: 0.40}
+      - id: "mistralai/mistral-nemo"
+        pricing: {input_per_million: 0.019, output_per_million: 0.03}
 
   moonshot:
     enabled: true
@@ -281,16 +304,44 @@ providers:
         pricing: {input_per_million: 0.14, output_per_million: 0.28}
       - id: "z-ai/glm-5.2"
         pricing: {input_per_million: 0.959, output_per_million: 3.014}
-      - id: "z-ai/glm-4.7"
-        pricing: {input_per_million: 0.40, output_per_million: 1.75}
       - id: "nvidia/nemotron-3-ultra-550b-a55b:free"
         pricing: {input_per_million: 0.00, output_per_million: 0.00}
-      - id: "qwen/qwen3-32b"
-        pricing: {input_per_million: 0.08, output_per_million: 0.28}
+      - id: "stepfun/step-3.7-flash"
+        pricing: {input_per_million: 0.20, output_per_million: 1.15}
+      - id: "poolside/laguna-m.1:free"
+        pricing: {input_per_million: 0.00, output_per_million: 0.00}
+      - id: "xiaomi/mimo-v2.5-pro"
+        pricing: {input_per_million: 0.435, output_per_million: 0.87}
       - id: "x-ai/grok-4.5"
         pricing: {input_per_million: 2.00, output_per_million: 6.00}
-      - id: "meta-llama/llama-3.3-70b-instruct"
-        pricing: {input_per_million: 0.13, output_per_million: 0.40}
+      - id: "mistralai/mistral-nemo"
+        pricing: {input_per_million: 0.019, output_per_million: 0.03}
+
+  # --- Local inference (LM Studio) — see the "LOCAL LLMs" note above. ---
+
+  local1:
+    enabled: false
+    display_name: "Local LLM 1 (LM Studio)"
+    base_url: "http://host.docker.internal:1234/v1/chat/completions"
+    api_key_env: "LMSTUDIO_API_KEY"
+    model: "not-configured"
+    max_tokens: 4096
+    request_style: openai_chat
+    default_temperature: 1.0
+    default_top_p: 1.0
+    local: true
+
+  local2:
+    enabled: false
+    display_name: "Local LLM 2 (LM Studio)"
+    base_url: "http://host.docker.internal:1234/v1/chat/completions"
+    api_key_env: "LMSTUDIO_API_KEY"
+    model: "not-configured"
+    max_tokens: 4096
+    request_style: openai_chat
+    default_temperature: 1.0
+    default_top_p: 1.0
+    local: true
 
 pipeline:
   stage1:

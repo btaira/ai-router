@@ -227,6 +227,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .api-key-status.ok { color: var(--ok); }
 .api-key-status.error { color: var(--bad); }
 
+.local-model-row { display: flex; gap: 6px; align-items: center; }
+.local-model-row .local-model-select { flex: 1; font-size: 12px; padding: 6px 8px; }
+.local-model-refresh-btn { padding: 6px 10px; font-size: 13px; border-color: var(--border); flex-shrink: 0; line-height: 1; }
+.local-model-status { font-size: 11px; color: var(--muted); min-height: 14px; }
+.local-model-status.ok { color: var(--ok); }
+.local-model-status.error { color: var(--bad); }
+
 .doc-status { font-size: 12px; color: var(--muted); word-break: break-word; }
 .doc-status.ok { color: var(--ok); }
 .doc-status.error { color: var(--bad); }

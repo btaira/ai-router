@@ -43,6 +43,12 @@ class ProviderConfig:
     # set one, instead of letting an invalid value reach the provider and
     # fail stage 1 with a confusing error.
     sampling_locked: bool = False
+    # True for a provider that talks to a local inference server (e.g. LM
+    # Studio) rather than a hosted vendor API. Local providers don't require
+    # an API key — the running server doesn't check it — and their model
+    # list comes from a live query to that server instead of a curated
+    # `models:` catalog (see GET /api/config/providers/{key}/local-models).
+    local: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -74,7 +80,7 @@ class AppConfig:
 _KNOWN_TOP_LEVEL_KEYS = {
     "enabled", "display_name", "base_url", "api_key_env", "model",
     "request_style", "max_tokens", "max_output_tokens", "pricing", "models",
-    "default_temperature", "default_top_p", "sampling_locked",
+    "default_temperature", "default_top_p", "sampling_locked", "local",
 }
 
 _ZERO_PRICING = {"input_per_million": 0.0, "output_per_million": 0.0}
@@ -108,6 +114,7 @@ def _build_provider_config(key: str, raw: dict[str, Any]) -> ProviderConfig:
         default_temperature=raw.get("default_temperature"),
         default_top_p=raw.get("default_top_p"),
         sampling_locked=raw.get("sampling_locked", False),
+        local=raw.get("local", False),
         extra=extra,
     )
 

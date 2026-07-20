@@ -24,36 +24,61 @@ for the next scheduled audit. This is the floor, not the ceiling — DeepSeek,
 MiniMax, and Moonshot each carry well more than 5 now (see below), since
 they can pick from any OpenRouter-hosted model, not just their own vendor's.
 
-## OpenRouter: any-vendor picks (2026-07-20)
+## OpenRouter: any-vendor picks (2026-07-20, refreshed 2026-07-20)
 
 DeepSeek, MiniMax, and Moonshot all route through the same
 `OPENROUTER_API_KEY` (see the note at the top of `providers.yaml`), so
 unlike Anthropic/OpenAI/Google — each locked to their own vendor's models —
 these three can each be pointed at *any* OpenRouter-hosted model. Their
 `models:` catalogs now carry their original vendor-specific lineup **plus**
-a shared block of OpenRouter's current top-ranked/most-used models (source:
-[openrouter.ai/rankings](https://openrouter.ai/rankings#top-models)),
-excluding anything already natively available via the Anthropic/OpenAI/
-Google slots (pick those from their own native slot — better feature
-support). Pricing verified the same day via OpenRouter's public
-`/api/v1/models` endpoint:
+a shared block covering the **top 15 models on OpenRouter's [LLM
+Leaderboard](https://openrouter.ai/rankings#leaderboard-table)** by weekly
+usage, excluding anything from Anthropic/OpenAI/Google (pick those from
+their own native slot — better feature support) and anything already
+covered by one of the three vendor-specific lists in this file (so e.g.
+`deepseek/deepseek-v4-pro` doesn't appear twice in DeepSeek's own dropdown
+— it's already there). That's why the shared block below is 9 entries, not
+15: of the top 15 leaderboard entries, 6 are Anthropic/OpenAI/Google
+(excluded) and 6 more are already vendor-list duplicates
+(`deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v3.2`, `minimax-m3`,
+`kimi-k2.6`, `kimi-k3`), leaving these 9 net-new entries. Pricing verified
+the same day via OpenRouter's public `/api/v1/models` endpoint:
 
-| Model | Pricing (in/out per M) | Why it's here |
+| Rank | Model | Pricing (in/out per M) |
 |---|---|---|
-| `tencent/hy3:free` | $0 / $0 | #1 by weekly token volume across all of OpenRouter. |
-| `xiaomi/mimo-v2.5` | $0.14 / $0.28 | #2 by weekly token volume. |
-| `z-ai/glm-5.2` | $0.959 / $3.014 | #5 by weekly token volume; also a top pick across several per-task leaderboards (Security Audit, etc). |
-| `z-ai/glm-4.7` | $0.40 / $1.75 | Top "fastest models" entry (523 tok/s on Cerebras). |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` | $0 / $0 | #6 by weekly token volume. |
-| `qwen/qwen3-32b` | $0.08 / $0.28 | Qwen is a top-5 vendor by OpenRouter market share; this is its fastest-ranked entry. |
-| `x-ai/grok-4.5` | $2.00 / $6.00 | Top-10 on the Artificial Analysis Intelligence Index benchmark. |
-| `meta-llama/llama-3.3-70b-instruct` | $0.13 / $0.40 | Widely-used open-weight baseline, also a top "fastest models" entry. |
+| 1 | `tencent/hy3:free` | $0 / $0 |
+| 2 | `xiaomi/mimo-v2.5` | $0.14 / $0.28 |
+| 5 | `z-ai/glm-5.2` | $0.959 / $3.014 |
+| 6 | `nvidia/nemotron-3-ultra-550b-a55b:free` | $0 / $0 |
+| 13 | `stepfun/step-3.7-flash` | $0.20 / $1.15 |
+| 15 | `poolside/laguna-m.1:free` | $0 / $0 |
+| 17 | `xiaomi/mimo-v2.5-pro` | $0.435 / $0.87 |
+| 29 | `x-ai/grok-4.5` | $2.00 / $6.00 |
+| 33 | `mistralai/mistral-nemo` | $0.019 / $0.03 |
+
+(Rank = position on the LLM Leaderboard as of 2026-07-20, before excluding
+Anthropic/OpenAI/Google/already-covered entries — included so this list can
+be re-derived from a future leaderboard snapshot without redoing the whole
+selection from scratch.)
 
 Also added `moonshotai/kimi-k3` ($3.00 / $15.00) directly to Moonshot's own
 lineup — it was listed as "rumored, not released" the last time this file
-was verified (2026-07-14); it's out now and ranks #3 on the Intelligence
-Index. Notably pricier than the rest of Moonshot's lineup, so it was added
-as an available pick, not made the default.
+was verified (2026-07-14); it's out now and ranks #23 on the leaderboard
+and #3 on the Artificial Analysis Intelligence Index. Notably pricier than
+the rest of Moonshot's lineup, so it was added as an available pick, not
+made the default.
+
+## Local LLMs (LM Studio) — added 2026-07-20
+
+Two provider slots, `local1`/`local2` (`local: true` in `providers.yaml`),
+talk to a local OpenAI-compatible server (LM Studio by default) instead of
+a hosted vendor API. No `models:` catalog and no pricing tracking here —
+by design, since the whole point is that a local server's model list
+changes as the user loads/unloads models, and the app queries it live via
+`GET /api/config/providers/{key}/local-models` rather than tracking it in
+this file. See the "Local LLMs (LM Studio)" section in `README.md` for the
+full behavior (live model dropdown, `host.docker.internal` networking,
+$0/M pricing).
 
 ## Summary
 

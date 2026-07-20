@@ -10,23 +10,27 @@ it's shown as trustworthy. The point is a second opinion you don't have to
 assemble by hand: instead of asking one model and hoping, or copy-pasting
 the same question into six tabs yourself, you get the disagreements
 surfaced, the weak claims flagged, and one answer built from the strongest
-evidence across all of them.
+evidence across all of them. Two more slots are available for local models
+served by LM Studio (or any OpenAI-compatible local server), off by default
+— see [Local LLMs](#local-llms-lm-studio) below.
 
 ## Status
 
 Working end-to-end: all three pipeline stages, citation verification, and
 the full settings UI described below have been exercised against live
-provider APIs, not just tests. All six providers ship **enabled by default**
-(toggle any off in "Model settings" if you don't have a key for one — a
-disabled or unconfigured provider is skipped cleanly rather than failing the
-run). Every model in the catalog was verified against live vendor/OpenRouter
-docs as of 2026-07-14 (see [`MODELS_STATUS.md`](MODELS_STATUS.md)) — one,
-`gemini-2.5-pro`, was found deprecated and is blocked from selection. Every
-vendor carries a 5th backup model beyond the 4 the UI guarantees, so a
-single future deprecation (like that one) doesn't drop anyone below 4
-working choices. 60 backend tests cover the pipeline logic, citation
-verification, sampling overrides, document extraction, the follow-up chat,
-BYOK key storage, and the config-editing endpoints.
+provider APIs, not just tests. All six hosted providers ship **enabled by
+default** (toggle any off in "Model settings" if you don't have a key for
+one — a disabled or unconfigured provider is skipped cleanly rather than
+failing the run); the two local-LLM slots default to **disabled**, since
+most people won't have a local server running. Every model in the catalog
+was verified against live vendor/OpenRouter docs as of 2026-07-14 (see
+[`MODELS_STATUS.md`](MODELS_STATUS.md)) — one, `gemini-2.5-pro`, was found
+deprecated and is blocked from selection. Every vendor carries a 5th backup
+model beyond the 4 the UI guarantees, so a single future deprecation (like
+that one) doesn't drop anyone below 4 working choices. 64 backend tests
+cover the pipeline logic, citation verification, sampling overrides,
+document extraction, the follow-up chat, BYOK key storage, local-provider
+handling, and the config-editing endpoints.
 
 ## Pipeline
 
@@ -289,14 +293,53 @@ change often.
 Unlike Anthropic/OpenAI/Google (each locked to their own vendor's models),
 these three slots can each be pointed at **any** OpenRouter-hosted model,
 not just one from their namesake vendor — their `models:` catalogs carry
-their original vendor-specific lineup plus a shared block of OpenRouter's
-current top-ranked/most-used models (tencent/hy3, xiaomi/mimo-v2.5,
-z-ai/glm-5.2, z-ai/glm-4.7, nvidia/nemotron-3-ultra, qwen/qwen3-32b,
-x-ai/grok-4.5, meta-llama/llama-3.3-70b-instruct — see
-[`MODELS_STATUS.md`](MODELS_STATUS.md) for how these were picked and
-verified). So "MiniMax" in the sidebar is really "OpenRouter slot #2,
-currently pointed at MiniMax" — pick whichever underlying model you want
-from its dropdown in Model settings.
+their original vendor-specific lineup plus a shared block covering
+OpenRouter's top 15 models on the
+[LLM Leaderboard](https://openrouter.ai/rankings#leaderboard-table) by
+weekly usage, excluding anything from Anthropic/OpenAI/Google (already
+natively available above) or already covered by one of the three vendor-
+specific lists (see [`MODELS_STATUS.md`](MODELS_STATUS.md) for the full
+list and how it was picked/verified). So "MiniMax" in the sidebar is really
+"OpenRouter slot #2, currently pointed at MiniMax" — pick whichever
+underlying model you want from its dropdown in Model settings.
+
+### Local LLMs (LM Studio)
+
+Two more slots — **Local LLM 1** and **Local LLM 2** — talk to a local
+OpenAI-compatible inference server (LM Studio by default) instead of a
+hosted vendor API:
+
+- **No API key needed.** Local servers don't check one; `LMSTUDIO_API_KEY`
+  in `.env`/Settings is entirely optional (only set it if your local server
+  actually enforces some Authorization header).
+- **The model dropdown is live, not curated.** Unlike every other provider,
+  these two don't have a static `models:` catalog in `providers.yaml` —
+  what's available depends on what's currently loaded in LM Studio, which
+  changes far more often than a hosted vendor's lineup. Opening "Model
+  settings" fetches the real list from LM Studio's own `/v1/models`
+  endpoint via `GET /api/config/providers/{key}/local-models`; there's also
+  a manual ↻ refresh button next to the dropdown for after swapping models
+  in LM Studio without reopening the panel. If the currently-saved model
+  isn't among what's loaded right now, it's still kept in the list (labeled
+  "not currently loaded") so hitting Save doesn't silently switch you to
+  something else.
+- **Both slots point at the same LM Studio instance by default** (same
+  `base_url`), so if LM Studio has two different models loaded at once, you
+  can run each as an independent stage-1 participant. Point `local2` at a
+  different host/port in `providers.yaml` if you're running two separate
+  local servers instead.
+- **$0/M pricing** — local inference has no per-token cost, so these two
+  never show up in the cost summary.
+- **Both default to disabled.** Turn one on once LM Studio's local server
+  is running (LM Studio → Developer tab → "Start Server") and at least one
+  model is loaded.
+- **Docker networking:** `base_url` defaults to
+  `http://host.docker.internal:1234/v1/chat/completions` —
+  `host.docker.internal` is Docker Desktop's DNS name for reaching the host
+  machine from inside the container, since LM Studio runs on your host, not
+  in the container. Running the app directly instead of via Docker (Option
+  B below)? Change it to `http://localhost:1234/v1/chat/completions`. LM
+  Studio on a different machine on your network? Use that machine's IP.
 
 ### Settings — BYOK API keys
 

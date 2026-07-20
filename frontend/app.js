@@ -67,6 +67,10 @@ function renderModelSettings() {
   const container = el("model-settings-list");
   container.innerHTML = "";
   for (const p of state.providers) {
+    if (p.local) {
+      container.appendChild(buildLocalModelRow(p));
+      continue;
+    }
     const options = modelOptionsFor(p);
     const optionsHtml = options
       .map((m) => {
@@ -113,6 +117,7 @@ function renderModelSettings() {
   container.querySelectorAll(".model-select").forEach((sel) => {
     sel.addEventListener("change", () => {
       const opt = sel.selectedOptions[0];
+      if (opt.dataset.in === undefined) return; // local rows: always $0, no live preview to update
       const preview = document.querySelector(`.model-cost-preview[data-provider="${sel.dataset.provider}"]`);
       preview.textContent = `${fmtRate(opt.dataset.in)} in / ${fmtRate(opt.dataset.out)} out per million tokens`;
     });
@@ -123,6 +128,96 @@ function renderModelSettings() {
   container.querySelectorAll(".model-save-btn").forEach((btn) => {
     btn.addEventListener("click", () => saveProviderSettings(btn.dataset.provider));
   });
+  container.querySelectorAll(".local-model-refresh-btn").forEach((btn) => {
+    btn.addEventListener("click", () => fetchLocalModels(btn.dataset.provider));
+  });
+  for (const p of state.providers) {
+    if (p.local) fetchLocalModels(p.key); // best-effort — silently shows an error if the local server isn't reachable
+  }
+}
+
+// Local providers (LM Studio, etc.) have no curated model catalog — what's
+// available depends on what's currently loaded on that server, which can
+// change mid-session. So instead of a static <select>, this row starts with
+// just the currently-configured model and fills in the real list via a live
+// fetch (see fetchLocalModels), with a manual refresh button for after
+// swapping models on the server without reopening this panel.
+function buildLocalModelRow(p) {
+  const row = document.createElement("div");
+  row.className = "model-row";
+  row.innerHTML = `
+    <label class="row model-row-toggle">
+      <input type="checkbox" class="provider-enabled-toggle" data-provider="${escapeHtml(p.key)}" ${p.enabled ? "checked" : ""} />
+      <strong>${escapeHtml(p.display_name)}</strong>
+    </label>
+
+    <label class="field-label">Model <span class="hint">(live from the local server)</span></label>
+    <div class="local-model-row">
+      <select class="model-select local-model-select" data-provider="${escapeHtml(p.key)}">
+        <option value="${escapeHtml(p.model)}" selected>${escapeHtml(p.model)}</option>
+      </select>
+      <button type="button" class="local-model-refresh-btn ghost-btn" data-provider="${escapeHtml(p.key)}" title="Fetch available models from the local server">&#8635;</button>
+    </div>
+    <div class="model-cost-preview" data-provider="${escapeHtml(p.key)}">$0.00 in / $0.00 out per million tokens — local inference</div>
+    <span class="local-model-status" data-provider="${escapeHtml(p.key)}"></span>
+
+    <div class="sampling-row">
+      <label class="field-label">Temperature <span class="hint">(default ${p.default_temperature ?? "—"})</span>
+        <input type="number" class="temperature-input" data-provider="${escapeHtml(p.key)}" min="0" max="2" step="0.1" placeholder="${p.default_temperature ?? "default"}" value="${p.temperature ?? ""}" />
+      </label>
+      <label class="field-label">Top-p <span class="hint">(default ${p.default_top_p ?? "—"})</span>
+        <input type="number" class="top-p-input" data-provider="${escapeHtml(p.key)}" min="0" max="1" step="0.05" placeholder="${p.default_top_p ?? "default"}" value="${p.top_p ?? ""}" />
+      </label>
+    </div>
+
+    <div class="model-row-controls">
+      <button type="button" class="model-save-btn ghost-btn" data-provider="${escapeHtml(p.key)}">Save</button>
+      <span class="model-save-status" data-provider="${escapeHtml(p.key)}"></span>
+    </div>
+  `;
+  return row;
+}
+
+async function fetchLocalModels(providerKey) {
+  const select = document.querySelector(`.local-model-select[data-provider="${providerKey}"]`);
+  const statusEl = document.querySelector(`.local-model-status[data-provider="${providerKey}"]`);
+  if (!select || !statusEl) return;
+  const currentValue = select.value;
+
+  statusEl.textContent = "fetching models…";
+  statusEl.className = "local-model-status";
+  try {
+    const res = await fetch(`/api/config/providers/${providerKey}/local-models`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      statusEl.textContent = `couldn't reach local server: ${err.detail || res.statusText}`;
+      statusEl.className = "local-model-status error";
+      return;
+    }
+    const data = await res.json();
+    if (!data.models || data.models.length === 0) {
+      statusEl.textContent = "reached the server, but it reported no loaded models";
+      statusEl.className = "local-model-status error";
+      return;
+    }
+    select.innerHTML = data.models
+      .map((id) => `<option value="${escapeHtml(id)}" ${id === currentValue ? "selected" : ""}>${escapeHtml(id)}</option>`)
+      .join("");
+    if (![...select.options].some((o) => o.value === currentValue)) {
+      // the currently-saved model isn't among what's loaded right now —
+      // keep it in the list so hitting Save doesn't silently switch models
+      const opt = document.createElement("option");
+      opt.value = currentValue;
+      opt.textContent = `${currentValue} (not currently loaded)`;
+      opt.selected = true;
+      select.prepend(opt);
+    }
+    statusEl.textContent = `${data.models.length} model(s) found`;
+    statusEl.className = "local-model-status ok";
+  } catch (e) {
+    statusEl.textContent = `error: ${e}`;
+    statusEl.className = "local-model-status error";
+  }
 }
 
 // Bring-your-own-key management — deliberately its own modal (opened via
@@ -132,6 +227,7 @@ function renderApiKeySettings() {
   const container = el("api-key-settings-list");
   container.innerHTML = "";
   for (const p of state.providers) {
+    if (p.local) continue; // local inference servers don't check a key at all
     const row = document.createElement("div");
     row.className = "api-key-settings-row";
     row.innerHTML = `

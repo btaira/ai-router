@@ -21,10 +21,11 @@ _PASSTHROUGH_EXTRA_KEYS = (
 class OpenAIChatAdapter(BaseAdapter):
     def build_request(self, prompt: str, history: list[dict] | None = None) -> tuple[str, dict, dict]:
         cfg = self.cfg
-        headers = {
-            "Authorization": f"Bearer {cfg.api_key}",
-            "content-type": "application/json",
-        }
+        headers = {"content-type": "application/json"}
+        # Local inference servers (LM Studio, etc.) don't check this at all
+        # — omit it rather than send a literal "Bearer None".
+        if cfg.api_key:
+            headers["Authorization"] = f"Bearer {cfg.api_key}"
         messages = [*(history or []), {"role": "user", "content": prompt}]
         body: dict = {
             "model": cfg.model,

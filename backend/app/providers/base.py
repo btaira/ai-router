@@ -64,7 +64,9 @@ class BaseAdapter:
         raise NotImplementedError
 
     async def generate(self, client: httpx.AsyncClient, prompt: str, history: list[dict] | None = None) -> ProviderResult:
-        if not self.cfg.api_key:
+        # Local inference servers (LM Studio, etc.) don't check the key at
+        # all — nothing to require here for a provider marked `local`.
+        if not self.cfg.local and not self.cfg.api_key:
             return ProviderResult(
                 provider=self.cfg.key, model=self.cfg.model, status="error",
                 error=f"missing API key: set ${self.cfg.api_key_env}",

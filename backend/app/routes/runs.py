@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
@@ -61,11 +62,11 @@ def get_provider_config():
         "providers": [
             {
                 "key": key, "display_name": p.display_name, "model": p.model,
-                "enabled": p.enabled, "has_api_key": bool(p.api_key),
+                "enabled": p.enabled, "has_api_key": p.local or bool(p.api_key),
                 "pricing": p.pricing, "available_models": p.available_models,
                 "temperature": p.extra.get("temperature"), "top_p": p.extra.get("top_p"),
                 "default_temperature": p.default_temperature, "default_top_p": p.default_top_p,
-                "sampling_locked": p.sampling_locked,
+                "sampling_locked": p.sampling_locked, "local": p.local,
             }
             for key, p in cfg.providers.items()
         ],
@@ -150,6 +151,34 @@ def clear_provider_api_key_route(provider_key: str):
         raise HTTPException(404, f"unknown provider: {provider_key}")
     set_provider_api_key(provider_key, None)
     return {"key": provider_key, "has_api_key": bool(cfg.providers[provider_key].api_key)}
+
+
+@router.get("/config/providers/{provider_key}/local-models")
+async def list_local_models(provider_key: str):
+    """Live-queries a local provider's own OpenAI-compatible `/models`
+    endpoint (e.g. LM Studio) — deliberately not a static catalog like the
+    other providers, since what's available locally changes as models are
+    loaded/unloaded, often more than once per session.
+    """
+    cfg = get_config()
+    if provider_key not in cfg.providers:
+        raise HTTPException(404, f"unknown provider: {provider_key}")
+    pcfg = cfg.providers[provider_key]
+    if not pcfg.local:
+        raise HTTPException(400, f"{provider_key} isn't a local provider")
+
+    models_url = pcfg.base_url.rsplit("/chat/completions", 1)[0] + "/models"
+    headers = {"Authorization": f"Bearer {pcfg.api_key}"} if pcfg.api_key else {}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(models_url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"couldn't reach {models_url}: {exc}") from exc
+
+    ids = sorted(m["id"] for m in data.get("data", []) if m.get("id"))
+    return {"models": ids}
 
 
 @router.post("/documents/extract")
