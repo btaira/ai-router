@@ -87,16 +87,25 @@ class BaseAdapter:
             data = resp.json()
             text, thinking_text, in_tok, out_tok = self.parse_response(data)
             cost = compute_cost(self.cfg, in_tok, out_tok)
-            # For local servers, report whichever model actually answered
-            # rather than the configured string — a local server (LM
-            # Studio, etc.) doesn't validate the requested `model` and will
-            # silently serve whatever it has loaded instead, so trusting
-            # our own config here could show the wrong (or a placeholder
-            # like "not-configured") name for what actually generated the
-            # answer. Hosted vendors' APIs reject an unrecognized model
-            # outright, so this only matters for local providers.
+            # Prefer whichever model the response itself says answered over
+            # our own configured string, for any provider proxied through a
+            # router rather than hit directly:
+            #  - Local servers (LM Studio, etc.) don't validate the
+            #    requested `model` at all and will silently serve whatever
+            #    they have loaded instead — trusting our config could show
+            #    the wrong model, or a placeholder like "not-configured".
+            #  - OpenRouter (DeepSeek/MiniMax/Moonshot) enforces the
+            #    requested model in practice, but it's still *itself* a
+            #    router in front of several upstream infra providers for
+            #    the same model — preferring its own response is the same
+            #    "verify, don't just trust the config" posture the rest of
+            #    this app already takes toward citations.
+            # Both request_style: openai_chat, which is exactly this class
+            # of provider — a direct hosted vendor (Anthropic/OpenAI/
+            # Google) always answers with the model it was asked for, so
+            # this deliberately doesn't apply to those.
             reported_model = self.cfg.model
-            if self.cfg.local and data.get("model"):
+            if (self.cfg.local or self.cfg.request_style == "openai_chat") and data.get("model"):
                 reported_model = data["model"]
             return ProviderResult(
                 provider=self.cfg.key, model=reported_model, status="ok",

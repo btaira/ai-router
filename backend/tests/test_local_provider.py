@@ -151,10 +151,13 @@ async def test_local_provider_falls_back_to_configured_model_if_response_omits_i
     assert result.model == "my-local-model"
 
 
-async def test_non_local_provider_ignores_response_model_field(monkeypatch):
-    # A hosted vendor's configured model string is trustworthy (their API
-    # rejects an unrecognized one outright) — don't let a response's own
-    # `model` field override it, unlike the local-provider case above.
+async def test_openrouter_style_provider_also_prefers_response_model(monkeypatch):
+    # DeepSeek/MiniMax/Moonshot are routed through OpenRouter using the same
+    # request_style: openai_chat as local providers — OpenRouter enforces
+    # the requested model in practice, but it's still a router in front of
+    # multiple upstream infra providers, so preferring its own response
+    # here is the same "verify, don't just trust the config" posture as
+    # citation checking elsewhere in this app.
     monkeypatch.setenv("SOME_KEY_FOR_TEST", "key-value")
     cfg = _local_provider_config(
         key="deepseek", display_name="DeepSeek", api_key_env="SOME_KEY_FOR_TEST",
@@ -165,7 +168,7 @@ async def test_non_local_provider_ignores_response_model_field(monkeypatch):
     with respx.mock(assert_all_called=True) as mock:
         mock.post("http://localhost:9999/v1/chat/completions").mock(
             return_value=Response(200, json={
-                "model": "some-other-model-id",
+                "model": "deepseek/deepseek-v4-pro",
                 "choices": [{"message": {"content": "hi"}}],
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1},
             })
@@ -174,3 +177,30 @@ async def test_non_local_provider_ignores_response_model_field(monkeypatch):
             result = await adapter.generate(client, "hello")
 
     assert result.model == "deepseek/deepseek-v4-pro"
+
+
+async def test_directly_hosted_vendor_ignores_response_model_field(monkeypatch):
+    # A directly-hosted vendor (Anthropic/OpenAI/Google — not proxied
+    # through OpenRouter or a local server) always answers with the exact
+    # model it was asked for, so there's nothing to "verify" here — the
+    # configured string stays authoritative regardless of what a response
+    # happens to report.
+    monkeypatch.setenv("SOME_KEY_FOR_TEST", "key-value")
+    cfg = _local_provider_config(
+        key="anthropic", display_name="Anthropic", api_key_env="SOME_KEY_FOR_TEST",
+        model="claude-sonnet-5", request_style="anthropic", local=False,
+    )
+    adapter = get_adapter(cfg)
+
+    with respx.mock(assert_all_called=True) as mock:
+        mock.post("http://localhost:9999/v1/chat/completions").mock(
+            return_value=Response(200, json={
+                "model": "some-other-model-id",
+                "content": [{"type": "text", "text": "hi"}],
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            })
+        )
+        async with httpx.AsyncClient() as client:
+            result = await adapter.generate(client, "hello")
+
+    assert result.model == "claude-sonnet-5"
