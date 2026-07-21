@@ -73,6 +73,19 @@ carry the same risk — OpenRouter's free tiers can disappear with no
 notice, unlike paid ones. Re-verify both still resolve before relying on
 this file being current; as of 2026-07-21 both are still confirmed live.
 
+**Update 2026-07-21 (later):** `poolside/laguna-m.1:free` turned out to be
+unreliable beyond just the retirement risk above — live-tested across this
+session it failed three different ways (HTTP 500, HTTP 400 "Server tool
+request failed", and HTTP 429 rate-limit) with the app's exact
+`reasoning.effort: xhigh` + `openrouter:web_search` tool combo, including
+one case where it still failed after the tools-retry fallback. A 3x
+back-to-back retest of the free tier confirmed it's just flaky capacity,
+not a one-off. Switched the OpenRouter 3 slot's active `model:` to
+`z-ai/glm-5.2` (3/3 clean in the same retest, vs. `xiaomi/mimo-v2.5`'s 1/3
+HTTP 500 in the same test — picked GLM over the cheaper Xiaomi entry for
+that reason). `poolside/laguna-m.1:free` is left in the catalog as a
+selectable option, just no longer the default.
+
 Also added `moonshotai/kimi-k3` ($3.00 / $15.00) directly to Moonshot's own
 lineup — it was listed as "rumored, not released" the last time this file
 was verified (2026-07-14); it's out now and ranks #23 on the leaderboard
