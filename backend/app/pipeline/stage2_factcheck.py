@@ -47,9 +47,16 @@ Identify factual claims in the ANSWER TO CHECK that are unsupported, contradicte
 If there are no material factual claims to flag, return {{"claims": []}}."""
 
 
-def _build_prompt(prompt: str, subject: str, subject_answer: str, others: dict[str, str],
+def _build_prompt(prompt: str, subject_model: str, subject_answer: str, others: list[tuple[str, str]],
                    focus_claims: list[str] | None) -> str:
-    others_block = "\n\n".join(f"[{p}]:\n{t}" for p, t in others.items()) or "(none)"
+    # Labeled by actual model name, not provider key/slot — a provider key
+    # like "moonshot" or a slot label like "OpenRouter 3" means nothing to
+    # the model being asked to reason about "the answer from X", and both
+    # can also drift out of date if the slot gets repointed at a different
+    # model later. `others` is a list, not a dict, since two slots can
+    # legitimately share the same underlying model — keying by model name
+    # would silently drop one of them.
+    others_block = "\n\n".join(f"[{model}]:\n{t}" for model, t in others) or "(none)"
     focus_block = ""
     if focus_claims:
         focus_block = (
@@ -57,7 +64,7 @@ def _build_prompt(prompt: str, subject: str, subject_answer: str, others: dict[s
             + "\n".join(f"- {c}" for c in focus_claims) + "\n"
         )
     return _PROMPT_TEMPLATE.format(
-        prompt=prompt, subject=subject, subject_answer=subject_answer,
+        prompt=prompt, subject=subject_model, subject_answer=subject_answer,
         others_block=others_block, focus_block=focus_block,
     )
 
@@ -107,6 +114,7 @@ async def run_stage2(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
 
     mode = (run.get("stage2_mode") if run else None) or cfg.stages.stage2_mode
     answers_by_provider = {p: r["response_text"] for p, r in ok_rows.items()}
+    model_by_provider = {p: r["model"] for p, r in ok_rows.items()}
     checkers, subjects, flagged_by_subject = _select_checkers_and_subjects(
         mode, cfg, list(ok_rows.keys()), answers_by_provider, run.get("fact_checkers") if run else None
     )
@@ -124,9 +132,9 @@ async def run_stage2(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
         for subject in subjects:
             if existing.get((checker, subject), {}).get("status") == "ok":
                 continue
-            others = {p: t for p, t in answers_by_provider.items() if p != subject}
+            others = [(model_by_provider[p], t) for p, t in answers_by_provider.items() if p != subject]
             focus = flagged_by_subject.get(subject) if flagged_by_subject else None
-            fc_prompt = _build_prompt(prompt, subject, answers_by_provider[subject], others, focus)
+            fc_prompt = _build_prompt(prompt, model_by_provider[subject], answers_by_provider[subject], others, focus)
             jobs.append((checker, subject, fc_prompt))
 
     if jobs:
@@ -142,6 +150,7 @@ async def run_stage2(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
                     run_id=run_id, checker_provider=checker, subject_provider=subject, status="error",
                     claims=None, raw_response=None, error=f"{type(outcome).__name__}: {outcome}",
                     input_tokens=None, output_tokens=None, cost_usd=None, latency_ms=None,
+                    checker_model=cfg.providers[checker].model if checker in cfg.providers else None,
                 )
                 continue
             _, _, result = outcome
@@ -159,6 +168,7 @@ async def run_stage2(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
                 claims=claims, raw_response={"text": result.text, "raw": result.raw}, error=error,
                 input_tokens=result.input_tokens, output_tokens=result.output_tokens,
                 cost_usd=result.cost_usd, latency_ms=result.latency_ms,
+                checker_model=result.model,
             )
 
     return db.get_fact_check_results(run_id)

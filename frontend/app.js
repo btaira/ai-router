@@ -740,7 +740,7 @@ function render(data) {
   renderBubbles(stage1_responses, cost_by_provider || {});
   renderSynthesis(synthesis, citation_verifications);
   renderFollowup(synthesis, followup_messages || []);
-  renderFactChecks(fact_check_results);
+  renderFactChecks(fact_check_results, stage1_responses);
   renderStage1(stage1_responses);
 }
 
@@ -968,7 +968,7 @@ async function submitFollowup(ev) {
   }
 }
 
-function renderFactChecks(factChecks) {
+function renderFactChecks(factChecks, stage1Responses) {
   const container = el("factcheck-list");
   container.innerHTML = "";
   const withClaims = factChecks.filter((fc) => fc.status === "ok" && fc.claims && fc.claims.length > 0);
@@ -981,6 +981,15 @@ function renderFactChecks(factChecks) {
     container.innerHTML = '<div class="no-flags">No claims were flagged by the fact-checkers.</div>';
     return;
   }
+
+  // Labeled by actual model name, not the provider key/slot (e.g.
+  // "moonshot") — a slot's underlying model can be changed at any time, so
+  // its key or current display name doesn't reliably say which model
+  // actually did the reviewing for *this* run. subjectModel comes from
+  // this run's own stage1 data; checkerModel is captured at fact-check
+  // time and falls back to the provider key for runs from before that was
+  // tracked.
+  const modelByProvider = Object.fromEntries(stage1Responses.map((r) => [r.provider, r.model]));
 
   for (const fc of withClaims) {
     const card = document.createElement("div");
@@ -995,7 +1004,9 @@ function renderFactChecks(factChecks) {
         </div>`
       )
       .join("");
-    card.innerHTML = `<div class="fc-header">${escapeHtml(fc.checker_provider)} reviewing ${escapeHtml(fc.subject_provider)}</div>${claimRows}`;
+    const checkerLabel = fc.checker_model || fc.checker_provider;
+    const subjectLabel = modelByProvider[fc.subject_provider] || fc.subject_provider;
+    card.innerHTML = `<div class="fc-header">${escapeHtml(checkerLabel)} reviewing ${escapeHtml(subjectLabel)}</div>${claimRows}`;
     container.appendChild(card);
   }
 }

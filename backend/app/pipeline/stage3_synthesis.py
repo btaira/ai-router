@@ -20,7 +20,7 @@ from ..providers import get_adapter
 
 _URL_RE = re.compile(r"https?://[^\s)\]}>\"']+")
 
-_PROMPT_TEMPLATE = """You are synthesizing a single, high-quality answer to a user's prompt from six independent AI models' answers plus fact-check notes flagging claims those models disagreed on or couldn't support.
+_PROMPT_TEMPLATE = """You are synthesizing a single, high-quality answer to a user's prompt from {count} independent AI models' answers plus fact-check notes flagging claims those models disagreed on or couldn't support.
 
 USER PROMPT:
 {prompt}
@@ -31,17 +31,17 @@ USER PROMPT:
 --- STAGE 2: FACT-CHECK NOTES (verdict + confidence + suggested correction per flagged claim) ---
 {fact_check_block}
 
-Do not simply average, blend, or concatenate all six answers together — that rewards verbosity and consensus over correctness. Instead:
+Do not simply average, blend, or concatenate all {count} answers together — that rewards verbosity and consensus over correctness. Instead:
 
 1. Evaluate each answer's accuracy and completeness using the fact-check notes as evidence. A claim marked "contradicted" or "unsupported" should be trusted less on that specific point than one marked "supported" — regardless of which model said it.
 2. Identify whichever answer (or answers, if several genuinely converge on the same substance) is strongest overall, and build your consolidated answer primarily from that one, applying corrections from the fact-check notes.
 3. Pull in additional detail from the other answers only where it adds real value the strongest answer is missing — not merely to represent every model.
 4. If one answer is clearly more accurate, complete, or better-reasoned than the rest, prefer it and say so briefly. If models genuinely disagree and the fact-check notes don't resolve it, say that explicitly rather than papering over it.
 
-If you cite a source, include its literal URL in parentheses right after the claim, e.g. "(https://example.com/page)". Only include a URL if it appeared verbatim in one of the six answers above, or if you are highly confident it is a real, resolvable URL — every URL you output will be programmatically checked with a live HTTP request and removed from the final answer if it doesn't resolve, so do not pad the answer with invented-looking citations."""
+If you cite a source, include its literal URL in parentheses right after the claim, e.g. "(https://example.com/page)". Only include a URL if it appeared verbatim in one of the answers above, or if you are highly confident it is a real, resolvable URL — every URL you output will be programmatically checked with a live HTTP request and removed from the final answer if it doesn't resolve, so do not pad the answer with invented-looking citations."""
 
 
-def _format_fact_check_block(fact_checks: list[dict]) -> str:
+def _format_fact_check_block(fact_checks: list[dict], model_by_provider: dict[str, str]) -> str:
     if not fact_checks:
         return "(fact-check stage was skipped or produced no results)"
     lines = []
@@ -51,7 +51,13 @@ def _format_fact_check_block(fact_checks: list[dict]) -> str:
         claims = json.loads(fc["claims_json"])
         if not claims:
             continue
-        lines.append(f"[{fc['checker_provider']} reviewing {fc['subject_provider']}]:")
+        # Labeled by actual model, not provider key/slot — see the same
+        # note in stage2_factcheck._build_prompt. checker_model is only
+        # populated for fact-checks run after that column was added; older
+        # rows fall back to the raw provider key.
+        checker_label = fc.get("checker_model") or fc["checker_provider"]
+        subject_label = model_by_provider.get(fc["subject_provider"], fc["subject_provider"])
+        lines.append(f"[{checker_label} reviewing {subject_label}]:")
         for c in claims:
             lines.append(
                 f"  - claim: {c.get('claim')!r} | verdict: {c.get('verdict')} | "
@@ -89,11 +95,14 @@ async def run_stage3(run_id: str, prompt: str, cfg: AppConfig, force: bool = Fal
         )
         return db.get_synthesis_result(run_id)
 
-    answers_block = "\n\n".join(f"[{r['provider']}]:\n{r['response_text']}" for r in ok_rows)
+    answers_block = "\n\n".join(f"[{r['model']}]:\n{r['response_text']}" for r in ok_rows)
     fact_checks = db.get_fact_check_results(run_id)
-    fact_check_block = _format_fact_check_block(fact_checks)
+    model_by_provider = {r["provider"]: r["model"] for r in ok_rows}
+    fact_check_block = _format_fact_check_block(fact_checks, model_by_provider)
 
-    synth_prompt = _PROMPT_TEMPLATE.format(prompt=prompt, answers_block=answers_block, fact_check_block=fact_check_block)
+    synth_prompt = _PROMPT_TEMPLATE.format(
+        prompt=prompt, answers_block=answers_block, fact_check_block=fact_check_block, count=len(ok_rows),
+    )
 
     # Always use this provider's default sampling for synthesis, regardless
     # of any temperature/top_p override configured for stage 1 — see

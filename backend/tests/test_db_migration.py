@@ -43,11 +43,34 @@ def test_run_fact_checkers_defaults_to_none(test_db):
     assert run["fact_checkers"] is None
 
 
+def test_fact_check_checker_model_round_trips(test_db):
+    run_id = test_db.create_run(prompt="x", skip_stage2=False, stage2_mode="designated_fact_checkers",
+                                 synthesis_provider="anthropic")
+    test_db.upsert_fact_check_result(
+        run_id=run_id, checker_provider="anthropic", subject_provider="openai", status="ok",
+        claims=[], raw_response={}, error=None, input_tokens=1, output_tokens=1, cost_usd=0.01, latency_ms=10,
+        checker_model="claude-sonnet-5",
+    )
+    result = test_db.get_fact_check_results(run_id)[0]
+    assert result["checker_model"] == "claude-sonnet-5"
+
+
+def test_fact_check_checker_model_defaults_to_none(test_db):
+    run_id = test_db.create_run(prompt="x", skip_stage2=False, stage2_mode="designated_fact_checkers",
+                                 synthesis_provider="anthropic")
+    test_db.upsert_fact_check_result(
+        run_id=run_id, checker_provider="anthropic", subject_provider="openai", status="ok",
+        claims=[], raw_response={}, error=None, input_tokens=1, output_tokens=1, cost_usd=0.01, latency_ms=10,
+    )
+    result = test_db.get_fact_check_results(run_id)[0]
+    assert result["checker_model"] is None
+
+
 def test_init_db_migrates_a_database_created_before_these_columns_existed(tmp_path, monkeypatch):
     # Simulate an existing (pre-upgrade) database: the same runs/
-    # synthesis_results tables, but without fact_checkers/thinking_text —
-    # as if it were created by an older version of SCHEMA before those
-    # columns were added.
+    # synthesis_results/fact_check_results tables, but without
+    # fact_checkers/thinking_text/checker_model — as if it were created by
+    # an older version of SCHEMA before those columns were added.
     db_path = tmp_path / "old.db"
     conn = sqlite3.connect(db_path)
     conn.execute("""
@@ -62,6 +85,14 @@ def test_init_db_migrates_a_database_created_before_these_columns_existed(tmp_pa
             id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL UNIQUE, provider TEXT NOT NULL,
             status TEXT NOT NULL, synthesis_text TEXT, raw_response_json TEXT, error TEXT,
             input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL, latency_ms REAL, created_at REAL NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE fact_check_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, checker_provider TEXT NOT NULL,
+            subject_provider TEXT NOT NULL, status TEXT NOT NULL, claims_json TEXT, raw_response_json TEXT,
+            error TEXT, input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL, latency_ms REAL,
+            created_at REAL NOT NULL, UNIQUE(run_id, checker_provider, subject_provider)
         )
     """)
     conn.execute(
@@ -84,3 +115,10 @@ def test_init_db_migrates_a_database_created_before_these_columns_existed(tmp_pa
         thinking_text="reasoning trace",
     )
     assert db_module.get_synthesis_result("preexisting")["thinking_text"] == "reasoning trace"
+
+    db_module.upsert_fact_check_result(
+        run_id="preexisting", checker_provider="anthropic", subject_provider="openai", status="ok",
+        claims=[], raw_response={}, error=None, input_tokens=1, output_tokens=1, cost_usd=0.01, latency_ms=10,
+        checker_model="claude-sonnet-5",
+    )
+    assert db_module.get_fact_check_results("preexisting")[0]["checker_model"] == "claude-sonnet-5"

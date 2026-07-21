@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS fact_check_results (
     run_id TEXT NOT NULL,
     checker_provider TEXT NOT NULL,
     subject_provider TEXT NOT NULL,     -- the stage1 answer being reviewed
+    checker_model TEXT,                 -- actual model that performed the check (provider keys/display names drift; this doesn't)
     status TEXT NOT NULL,               -- ok | error | timeout
     claims_json TEXT,                   -- structured list of {claim, verdict, confidence, correction}
     raw_response_json TEXT,
@@ -147,6 +148,7 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "synthesis_results", "thinking_text", "TEXT")
         _ensure_column(conn, "runs", "fact_checkers", "TEXT")
+        _ensure_column(conn, "fact_check_results", "checker_model", "TEXT")
 
 
 def new_run_id() -> str:
@@ -261,21 +263,22 @@ def get_stage1_responses(run_id: str) -> list[dict[str, Any]]:
 def upsert_fact_check_result(run_id: str, checker_provider: str, subject_provider: str, status: str,
                               claims: list | None, raw_response: Any, error: str | None,
                               input_tokens: int | None, output_tokens: int | None,
-                              cost_usd: float | None, latency_ms: float | None) -> None:
+                              cost_usd: float | None, latency_ms: float | None,
+                              checker_model: str | None = None) -> None:
     with get_conn() as conn:
         conn.execute(
             """
             INSERT INTO fact_check_results
-                (run_id, checker_provider, subject_provider, status, claims_json, raw_response_json,
-                 error, input_tokens, output_tokens, cost_usd, latency_ms, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (run_id, checker_provider, subject_provider, checker_model, status, claims_json,
+                 raw_response_json, error, input_tokens, output_tokens, cost_usd, latency_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id, checker_provider, subject_provider) DO UPDATE SET
-                status=excluded.status, claims_json=excluded.claims_json,
+                status=excluded.status, claims_json=excluded.claims_json, checker_model=excluded.checker_model,
                 raw_response_json=excluded.raw_response_json, error=excluded.error,
                 input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
                 cost_usd=excluded.cost_usd, latency_ms=excluded.latency_ms, created_at=excluded.created_at
             """,
-            (run_id, checker_provider, subject_provider, status,
+            (run_id, checker_provider, subject_provider, checker_model, status,
              json.dumps(claims) if claims is not None else None,
              json.dumps(raw_response, default=str) if raw_response is not None else None,
              error, input_tokens, output_tokens, cost_usd, latency_ms, time.time()),

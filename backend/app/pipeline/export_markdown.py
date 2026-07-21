@@ -37,6 +37,10 @@ def build_run_markdown(
 ) -> str:
     lines: list[str] = []
     w = lines.append
+    # Actual model per provider slot, for labeling fact-check headers below
+    # — a slot's key/display name (e.g. "moonshot") doesn't say which
+    # model actually did the reviewing, and can drift if repointed later.
+    model_by_provider = {r["provider"]: r.get("model") for r in stage1_responses}
 
     w(f"# AI Router Run Report")
     w("")
@@ -116,7 +120,9 @@ def build_run_markdown(
         claims = json.loads(fc["claims_json"])
         if not claims:
             continue
-        w(f"### {fc['checker_provider']} reviewing {fc['subject_provider']}")
+        checker_label = fc.get("checker_model") or fc["checker_provider"]
+        subject_label = model_by_provider.get(fc["subject_provider"]) or fc["subject_provider"]
+        w(f"### {checker_label} reviewing {subject_label}")
         w("")
         for c in claims:
             w(f"- **{c.get('verdict', '?').upper()}** (confidence {c.get('confidence', '?')}): {c.get('claim')}")
