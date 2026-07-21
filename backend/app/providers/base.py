@@ -81,11 +81,33 @@ class BaseAdapter:
         start = time.monotonic()
         try:
             resp = await client.post(url, headers=headers, json=body)
+
+            # Some providers/models — especially newer or free-tier ones
+            # routed through OpenRouter — don't reliably support
+            # server-side tool calling (web search), and fail in ways that
+            # don't clearly say so: a plain 500, not just a tool-specific
+            # 400 (confirmed directly against OpenRouter for several
+            # models in the shared any-vendor catalog). Retry once without
+            # tools rather than failing the whole call outright — same
+            # "don't let one weak spot take the call down" posture as
+            # everywhere else in this pipeline.
+            attempted_without_tools = False
+            if resp.status_code >= 400 and "tools" in body:
+                attempted_without_tools = True
+                fallback_body = {k: v for k, v in body.items() if k != "tools"}
+                fallback_resp = await client.post(url, headers=headers, json=fallback_body)
+                if fallback_resp.status_code < 400:
+                    resp = fallback_resp
+                    body = fallback_body
+
             latency_ms = (time.monotonic() - start) * 1000
             if resp.status_code >= 400:
+                error_msg = f"HTTP {resp.status_code}: {resp.text[:500]}"
+                if attempted_without_tools:
+                    error_msg += " (also failed without the web-search tool — likely doesn't support it)"
                 return ProviderResult(
                     provider=self.cfg.key, model=self.cfg.model, status="error",
-                    error=f"HTTP {resp.status_code}: {resp.text[:500]}",
+                    error=error_msg,
                     raw={"status_code": resp.status_code, "body": resp.text[:2000]},
                     latency_ms=latency_ms, request_body=body,
                 )
