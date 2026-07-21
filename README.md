@@ -276,32 +276,36 @@ instead of being limited to the model's training cutoff. Remove a
 provider's `tools:` block in `providers.yaml` to turn it off; it's billed
 per-search on top of normal token costs.
 
-### DeepSeek, MiniMax, and Moonshot (Kimi) via OpenRouter
+### OpenRouter 1, 2, and 3
 
-These three are routed through [OpenRouter](https://openrouter.ai) rather
-than called directly, using a single `OPENROUTER_API_KEY`. OpenRouter speaks
-the OpenAI chat-completions format and normalizes reasoning effort
-(`reasoning: {effort: ...}`) and web search across vendors, so all three use
-`request_style: openai_chat` with OpenRouter's `"vendor/model-name"` slugs
-(e.g. `deepseek/deepseek-v4-pro`), not the vendors' own native model names.
-Pricing in `providers.yaml` is each provider's list/base per-token rate,
-double-checked against current pricing pages (not accounting for prompt
-caching discounts, which can cut effective cost 60-90% on repeat context —
-so these are a conservative upper bound). Re-verify periodically; they
-change often.
+These three slots are routed through [OpenRouter](https://openrouter.ai)
+rather than any single vendor's API directly, using one `OPENROUTER_API_KEY`.
+OpenRouter speaks the OpenAI chat-completions format and normalizes
+reasoning effort (`reasoning: {effort: ...}`) and web search across
+vendors, so all three use `request_style: openai_chat` with OpenRouter's
+`"vendor/model-name"` slugs (e.g. `deepseek/deepseek-v4-pro`), not any
+vendor's own native model names.
 
 Unlike Anthropic/OpenAI/Google (each locked to their own vendor's models),
-these three slots can each be pointed at **any** OpenRouter-hosted model,
-not just one from their namesake vendor — their `models:` catalogs carry
-their original vendor-specific lineup plus a shared block covering
-OpenRouter's top 15 models on the
+these three slots can each be pointed at **any** OpenRouter-hosted model —
+that's why they're labeled generically ("OpenRouter 1/2/3") rather than
+after a specific vendor: each one's `model:` in Model settings is just
+whichever model you last picked for that slot, defaulting to DeepSeek/
+MiniMax/Moonshot respectively but freely changeable to anything else.
+Their `models:` catalogs in `providers.yaml` carry that original
+vendor-specific lineup plus a shared block covering OpenRouter's top 15
+models on the
 [LLM Leaderboard](https://openrouter.ai/rankings#leaderboard-table) by
 weekly usage, excluding anything from Anthropic/OpenAI/Google (already
-natively available above) or already covered by one of the three vendor-
-specific lists (see [`MODELS_STATUS.md`](MODELS_STATUS.md) for the full
-list and how it was picked/verified). So "MiniMax" in the sidebar is really
-"OpenRouter slot #2, currently pointed at MiniMax" — pick whichever
-underlying model you want from its dropdown in Model settings.
+natively available above) or already covered by one of the three
+vendor-specific lists (see [`MODELS_STATUS.md`](MODELS_STATUS.md) for the
+full list and how it was picked/verified).
+
+Pricing in `providers.yaml` is each catalog entry's list/base per-token
+rate, double-checked against current pricing pages (not accounting for
+prompt caching discounts, which can cut effective cost 60-90% on repeat
+context — so these are a conservative upper bound). Re-verify
+periodically; they change often.
 
 ### Local LLMs (LM Studio)
 
