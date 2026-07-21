@@ -555,6 +555,160 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// Small hand-written Markdown -> HTML renderer for the synthesized answer.
+// Supports just enough structure for typical LLM-generated prose: headings
+// (# .. ######), bold/italic, inline code, unordered/ordered lists,
+// paragraphs, and auto-linked bare URLs. All text content is run through
+// escapeHtml() before any tag is layered on top, so raw LLM output can never
+// inject live HTML/script into the page.
+function renderMarkdownInline(escapedText) {
+  const stash = [];
+  // Placeholder must be a token real prose can't plausibly contain — plain
+  // digits/spaces would collide with ordinary text (e.g. "rose 1 percent").
+  const save = (html) => {
+    const token = `@@MDSTASH${stash.length}@@`;
+    stash.push(html);
+    return token;
+  };
+
+  let out = escapedText;
+
+  // Inline code spans — stashed first so their contents are immune to the
+  // bold/italic/link passes below.
+  out = out.replace(/`([^`]+)`/g, (_, code) => save(`<code>${code}</code>`));
+
+  // Bare URLs. Only http(s) schemes are ever matched, and the href is given
+  // its own quote-escaping pass (independent of escapeHtml's behavior)
+  // before being placed inside an attribute, so an adversarial URL can never
+  // break out of the href="" string.
+  out = out.replace(/(https?:\/\/[^\s<>"']+)/g, (_, url) => {
+    let cleanUrl = url;
+    let trailing = "";
+    const trailingMatch = cleanUrl.match(/[.,;:!?)\]]+$/);
+    if (trailingMatch) {
+      trailing = trailingMatch[0];
+      cleanUrl = cleanUrl.slice(0, -trailing.length);
+    }
+    if (!cleanUrl) return url;
+    const safeHref = cleanUrl.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    return save(`<a href="${safeHref}" target="_blank" rel="noopener">${cleanUrl}</a>`) + trailing;
+  });
+
+  // Bold before italic so "**x**" isn't first read as two adjacent italics.
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  out = out.replace(/_([^_]+)_/g, "<em>$1</em>");
+
+  out = out.replace(/@@MDSTASH(\d+)@@/g, (_, idx) => stash[Number(idx)]);
+  return out;
+}
+
+// A GFM table separator row, e.g. "|---|:--:|---|" or "---|---" — every
+// character is one of |, :, -, or whitespace, and at least one "-" appears.
+function isTableSeparatorLine(line) {
+  return /-/.test(line) && /^[|:\-\s]+$/.test(line);
+}
+
+function splitTableRow(line) {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+function renderMarkdown(text) {
+  if (!text) return "";
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let paragraphLines = [];
+
+  const flushParagraph = () => {
+    if (paragraphLines.length) {
+      const combined = paragraphLines.join(" ").trim();
+      if (combined) {
+        blocks.push(`<p>${renderMarkdownInline(escapeHtml(combined))}</p>`);
+      }
+      paragraphLines = [];
+    }
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
+    if (trimmed === "") {
+      flushParagraph();
+      i++;
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      const level = headingMatch[1].length;
+      blocks.push(`<h${level}>${renderMarkdownInline(escapeHtml(headingMatch[2].trim()))}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparatorLine(lines[i + 1].trim())) {
+      flushParagraph();
+      const headerCells = splitTableRow(trimmed);
+      i += 2; // header row + separator row
+      const bodyRows = [];
+      while (i < lines.length && lines[i].trim() !== "" && lines[i].trim().includes("|") && !isTableSeparatorLine(lines[i].trim())) {
+        bodyRows.push(splitTableRow(lines[i].trim()));
+        i++;
+      }
+      const thead = `<thead><tr>${headerCells.map((c) => `<th>${renderMarkdownInline(escapeHtml(c))}</th>`).join("")}</tr></thead>`;
+      const tbody = `<tbody>${bodyRows.map((r) => `<tr>${r.map((c) => `<td>${renderMarkdownInline(escapeHtml(c))}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      blocks.push(`<table>${thead}${tbody}</table>`);
+      continue;
+    }
+
+    if (/^>\s?/.test(trimmed)) {
+      flushParagraph();
+      const quoteLines = [];
+      while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+        quoteLines.push(lines[i].trim().replace(/^>\s?/, ""));
+        i++;
+      }
+      blocks.push(`<blockquote><p>${renderMarkdownInline(escapeHtml(quoteLines.join(" ").trim()))}</p></blockquote>`);
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      flushParagraph();
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
+        const itemText = lines[i].trim().replace(/^[-*]\s+/, "");
+        items.push(`<li>${renderMarkdownInline(escapeHtml(itemText))}</li>`);
+        i++;
+      }
+      blocks.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(trimmed)) {
+      flushParagraph();
+      const items = [];
+      while (i < lines.length && /^\d+[.)]\s+/.test(lines[i].trim())) {
+        const itemText = lines[i].trim().replace(/^\d+[.)]\s+/, "");
+        items.push(`<li>${renderMarkdownInline(escapeHtml(itemText))}</li>`);
+        i++;
+      }
+      blocks.push(`<ol>${items.join("")}</ol>`);
+      continue;
+    }
+
+    paragraphLines.push(trimmed);
+    i++;
+  }
+  flushParagraph();
+
+  return blocks.join("\n");
+}
+
 // A provider's model/temperature/top-p only takes effect once its own
 // "Save" button in Model settings is clicked — but it's easy to change a
 // dropdown, not notice the still-unsaved row, and hit the big Run button
@@ -874,15 +1028,15 @@ function renderSynthesis(synthesis, citationVerifications) {
   if (synthesis.status !== "ok") {
     el("synthesis-text").innerHTML = `<span class="error-text">Synthesis ${synthesis.status}: ${escapeHtml(synthesis.error)}</span>`;
   } else {
-    const verifiedUrls = new Set(citationVerifications.filter((c) => c.verified).map((c) => c.url));
-    const removedUrls = new Set(citationVerifications.filter((c) => !c.verified).map((c) => c.url));
-    let html = escapeHtml(text);
+    // Badge citation URLs in the raw Markdown first (same substring-append
+    // logic as before), then convert the whole thing to HTML — rather than
+    // splicing badges into already-escaped/rendered HTML.
+    let rawText = text;
     for (const c of citationVerifications) {
-      const escapedUrl = escapeHtml(c.url);
       const badge = c.verified ? " ✅" : " ❌";
-      html = html.split(escapedUrl).join(`${escapedUrl}${badge}`);
+      rawText = rawText.split(c.url).join(`${c.url}${badge}`);
     }
-    el("synthesis-text").innerHTML = html;
+    el("synthesis-text").innerHTML = renderMarkdown(rawText);
   }
 
   const citationsDiv = el("citations");

@@ -197,6 +197,51 @@ async def test_synthesis_prompt_uses_actual_model_names_not_provider_keys(test_d
     assert "3 independent AI models" in synth_prompt  # dynamic count, not hardcoded "six"
 
 
+async def test_synthesis_prompt_instructs_markdown_research_brief_formatting(test_db, test_config):
+    # The synthesized answer should come out structured like a research
+    # brief (headings, bold, lists) rather than a dense paragraph blob, but
+    # the prompt should also tell the model to scale that structure down
+    # for trivial answers instead of forcing headers onto everything.
+    _seed_stage1()
+    with respx.mock(assert_all_called=True) as mock:
+        route = mock.post("https://fake-anthropic.test/v1/messages").mock(
+            return_value=Response(200, json={
+                "content": [{"type": "text", "text": "Paris has about 2.1 million people."}],
+                "usage": {"input_tokens": 50, "output_tokens": 40},
+            })
+        )
+        await stage3_synthesis.run_stage3("run1", "how many people live in paris", test_config)
+
+    sent_body = json.loads(route.calls[0].request.content)
+    synth_prompt = sent_body["messages"][-1]["content"]
+    assert "Markdown" in synth_prompt
+    assert "##" in synth_prompt
+    assert "heading" in synth_prompt
+    assert "Scale the structure to the complexity of the question" in synth_prompt
+
+
+async def test_synthesis_prompt_still_requires_bare_url_citations(test_db, test_config):
+    # extract_urls()'s regex and the frontend's badge-matching both depend
+    # on citations appearing as a literal bare URL in parentheses, e.g.
+    # "(https://example.com/page)" — NOT Markdown link syntax like
+    # "[text](url)". This must survive the research-brief formatting change.
+    _seed_stage1()
+    with respx.mock(assert_all_called=True) as mock:
+        route = mock.post("https://fake-anthropic.test/v1/messages").mock(
+            return_value=Response(200, json={
+                "content": [{"type": "text", "text": "Paris has about 2.1 million people."}],
+                "usage": {"input_tokens": 50, "output_tokens": 40},
+            })
+        )
+        await stage3_synthesis.run_stage3("run1", "how many people live in paris", test_config)
+
+    sent_body = json.loads(route.calls[0].request.content)
+    synth_prompt = sent_body["messages"][-1]["content"]
+    assert "(https://example.com/page)" in synth_prompt
+    assert "[text](url)" not in synth_prompt
+    assert "[text](https://example.com/page)" not in synth_prompt
+
+
 async def test_synthesis_fact_check_block_uses_actual_model_names(test_db, test_config):
     _seed_stage1()
     db.upsert_fact_check_result(

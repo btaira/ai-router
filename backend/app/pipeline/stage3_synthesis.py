@@ -38,6 +38,12 @@ Do not simply average, blend, or concatenate all {count} answers together — th
 3. Pull in additional detail from the other answers only where it adds real value the strongest answer is missing — not merely to represent every model.
 4. If one answer is clearly more accurate, complete, or better-reasoned than the rest, prefer it and say so briefly. If models genuinely disagree and the fact-check notes don't resolve it, say that explicitly rather than papering over it.
 
+Format the answer as clean, well-structured Markdown suitable for a professional research brief:
+- Open with a short bold or `#`-style title line summarizing the topic.
+- Organize the body with `##`-style section headings that fit the actual content (for example "Overview", "Key Findings", "Details", "Caveats" — these are just examples; choose whatever headings make sense for this specific question rather than forcing every answer into the same template).
+- Use **bold** for key terms, numbers, and conclusions, and bullet or numbered lists where they aid clarity, instead of dense prose paragraphs.
+- Scale the structure to the complexity of the question: a trivial one-line factual answer (e.g. "what is 2+2") should be given plainly, without headers or sections it doesn't need — reserve the full structure for answers substantial enough to benefit from it.
+
 If you cite a source, include its literal URL in parentheses right after the claim, e.g. "(https://example.com/page)". Only include a URL if it appeared verbatim in one of the answers above, or if you are highly confident it is a real, resolvable URL — every URL you output will be programmatically checked with a live HTTP request and removed from the final answer if it doesn't resolve, so do not pad the answer with invented-looking citations."""
 
 
