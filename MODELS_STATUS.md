@@ -46,7 +46,7 @@ the same day via OpenRouter's public `/api/v1/models` endpoint:
 
 | Rank | Model | Pricing (in/out per M) |
 |---|---|---|
-| 1 | `tencent/hy3:free` | $0 / $0 |
+| 1 | `tencent/hy3` | $0.14 / $0.58 |
 | 2 | `xiaomi/mimo-v2.5` | $0.14 / $0.28 |
 | 5 | `z-ai/glm-5.2` | $0.959 / $3.014 |
 | 6 | `nvidia/nemotron-3-ultra-550b-a55b:free` | $0 / $0 |
@@ -60,6 +60,18 @@ the same day via OpenRouter's public `/api/v1/models` endpoint:
 Anthropic/OpenAI/Google/already-covered entries — included so this list can
 be re-derived from a future leaderboard snapshot without redoing the whole
 selection from scratch.)
+
+**Update 2026-07-21:** `tencent/hy3:free` was retired by OpenRouter within
+a day of being added — confirmed gone entirely from
+`/api/v1/models`, and calling it returned an HTTP 404 pointing at
+`tencent/hy3` (the paid version, $0.14/$0.58) as the replacement. Swapped
+in `providers.yaml` (catalog entry and the OpenRouter 1 slot's active
+`model:`, which had been set to the dead slug). **Lesson for next
+refresh:** the `:free` variants in this shared block
+(`nvidia/nemotron-3-ultra-550b-a55b:free`, `poolside/laguna-m.1:free`)
+carry the same risk — OpenRouter's free tiers can disappear with no
+notice, unlike paid ones. Re-verify both still resolve before relying on
+this file being current; as of 2026-07-21 both are still confirmed live.
 
 Also added `moonshotai/kimi-k3` ($3.00 / $15.00) directly to Moonshot's own
 lineup — it was listed as "rumored, not released" the last time this file
